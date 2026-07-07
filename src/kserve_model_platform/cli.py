@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from .chaos import run_chaos_drill
 from .dashboard import render_dashboard
 from .io import read_json, write_csv, write_json
 from .models import generate_requests
@@ -108,6 +109,7 @@ def demo(output: str | Path) -> dict:
     monitoring = monitor(root)
     policy_audit = audit_platform_policy(Path.cwd(), output_root=root)
     trace_report = build_trace_report(root)
+    chaos_drill = run_chaos_drill(root)
     idempotent = predict(root, generate_requests(1)[0])
     return {
         "deployment": deployment,
@@ -116,6 +118,7 @@ def demo(output: str | Path) -> dict:
         "rollout_plan": monitoring["rollout_plan"],
         "policy_audit": policy_audit,
         "trace_report": trace_report,
+        "chaos_drill": chaos_drill,
         "dashboard": monitoring["dashboard"],
         "idempotent_replay": idempotent.get("idempotent_replay", False),
     }
@@ -124,7 +127,20 @@ def demo(output: str | Path) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="KServe model serving platform")
     sub = parser.add_subparsers(dest="command", required=True)
-    for command in ["demo", "deploy", "predict", "simulate", "monitor", "promote", "rollback", "health", "plan-rollout", "policy-audit", "trace-report"]:
+    for command in [
+        "demo",
+        "deploy",
+        "predict",
+        "simulate",
+        "monitor",
+        "promote",
+        "rollback",
+        "health",
+        "plan-rollout",
+        "policy-audit",
+        "trace-report",
+        "chaos-drill",
+    ]:
         cmd = sub.add_parser(command)
         cmd.add_argument("--output", default=".local")
         if command in {"deploy", "simulate"}:
@@ -152,4 +168,6 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(audit_platform_policy(Path.cwd(), output_root=args.output), indent=2, sort_keys=True))
     elif args.command == "trace-report":
         print(json.dumps(build_trace_report(args.output), indent=2, sort_keys=True))
+    elif args.command == "chaos-drill":
+        print(json.dumps(run_chaos_drill(args.output), indent=2, sort_keys=True))
     return 0

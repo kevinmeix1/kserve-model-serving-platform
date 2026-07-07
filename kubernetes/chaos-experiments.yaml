@@ -1,0 +1,67 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: credit-risk-challenger-pod-kill
+  namespace: mlops-serving
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces: ["mlops-serving"]
+    labelSelectors:
+      app.kubernetes.io/name: kserve-model-serving-platform
+  duration: "30s"
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: credit-risk-gateway-delay
+  namespace: mlops-serving
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces: ["mlops-serving"]
+    labelSelectors:
+      app.kubernetes.io/component: progressive-delivery
+  delay:
+    latency: "250ms"
+    correlation: "25"
+    jitter: "40ms"
+  duration: "2m"
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: canary-analysis-cpu-pressure
+  namespace: mlops-serving
+spec:
+  mode: one
+  selector:
+    namespaces: ["mlops-serving"]
+    labelSelectors:
+      app.kubernetes.io/component: admission-smoke
+  stressors:
+    cpu:
+      workers: 1
+      load: 60
+  duration: "2m"
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: weekly-serving-chaos-drill
+  namespace: mlops-serving
+spec:
+  schedule: "0 8 * * 1"
+  type: PodChaos
+  historyLimit: 3
+  concurrencyPolicy: Forbid
+  podChaos:
+    action: pod-kill
+    mode: one
+    selector:
+      namespaces: ["mlops-serving"]
+      labelSelectors:
+        app.kubernetes.io/name: kserve-model-serving-platform
+    duration: "30s"
