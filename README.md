@@ -101,6 +101,8 @@ For EKS Auto Mode, Terraform, managed-service mappings, and portability notes, s
 
 For GitHub artifact attestations, SLSA provenance, Sigstore policy-controller admission, and checksum evidence, see [supply chain provenance](docs/supply-chain-provenance.md).
 
+For an automated scan of advanced Airflow, Kubernetes, lineage, scaling, GitOps, and security controls, see [orchestration scorecard](docs/orchestration-scorecard.md).
+
 ## Canary Gates
 
 The challenger is recommended for promotion only when:

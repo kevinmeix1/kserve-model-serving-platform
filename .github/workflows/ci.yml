@@ -42,6 +42,7 @@ jobs:
             echo "- SLO report: .local/reports/slo_error_budget.json"
             echo "- Cloud migration plan: .local/reports/cloud_migration_plan.json"
             echo "- Supply-chain evidence: .local/reports/supply_chain_evidence.json"
+            echo "- Orchestration scorecard: .local/reports/orchestration_scorecard.json"
             echo ""
             echo "Generated reports:"
             find .local/reports -maxdepth 1 -type f | sort | sed 's/^/- /'

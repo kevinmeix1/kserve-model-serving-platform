@@ -24,7 +24,7 @@ def render_artifact_index(root: str | Path, *, title: str, description: str, das
         ("Cloud Migration Plan", "cloud_migration_plan.json", "KServe deployment migration notes for managed Kubernetes and cloud model platforms."),
         ("Disaster Recovery Plan", "disaster_recovery_plan.json", "Backup, restore, registry, and serving failover plan for production inference."),
         ("Traceability", "trace_report.json", "Request, model alias, rollout, and workload trace links for serving investigations."),
-        ("GitOps Promotion", "gitops_plan.json", "Environment promotion plan with Argo CD, progressive delivery, and rollback controls."),
+        ("Orchestration Scorecard", "orchestration_scorecard.json", "Automated scan of advanced Airflow, Kubernetes, lineage, and security controls."),
     ]
     card_html = "\n".join(
         f"""

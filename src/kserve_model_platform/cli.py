@@ -15,6 +15,7 @@ from .io import read_json, write_csv, write_json
 from .models import generate_requests
 from .monitoring import build_report, evaluate_canary
 from .network_security import build_network_security_report
+from .orchestration_scorecard import build_orchestration_scorecard
 from .policy_audit import audit_platform_policy
 from .registry import aliases as registry_aliases
 from .registry import promote_challenger, rollback as rollback_registry, seed_registry
@@ -146,6 +147,7 @@ def demo(output: str | Path) -> dict:
         description="Reviewer landing page for generated serving dashboard, rollout evidence, SLOs, migration, and reliability artifacts.",
         dashboard="kserve_serving_dashboard.html",
     )
+    orchestration_scorecard = build_orchestration_scorecard(root, project="KServe Model Serving Platform")
     supply_chain = build_supply_chain_evidence(
         root,
         project="KServe Model Serving Platform",
@@ -170,6 +172,7 @@ def demo(output: str | Path) -> dict:
         "slo_error_budget": slo_error_budget,
         "cloud_migration": cloud_migration,
         "artifact_index": str(artifact_index),
+        "orchestration_scorecard": orchestration_scorecard,
         "supply_chain": supply_chain,
         "dashboard": monitoring["dashboard"],
         "idempotent_replay": idempotent.get("idempotent_replay", False),
@@ -200,6 +203,7 @@ def main(argv: list[str] | None = None) -> int:
         "slo-report",
         "cloud-plan",
         "supply-chain",
+        "orchestration-scorecard",
     ]:
         cmd = sub.add_parser(command)
         cmd.add_argument("--output", default=".local")
@@ -246,4 +250,6 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_cloud_migration_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "supply-chain":
         print(json.dumps(build_supply_chain_evidence(args.output, project="KServe Model Serving Platform", artifact_name="kserve-serving-demo-artifacts", workflow="KServe Serving CI", namespace="mlops-serving"), indent=2, sort_keys=True))
+    elif args.command == "orchestration-scorecard":
+        print(json.dumps(build_orchestration_scorecard(args.output, project="KServe Model Serving Platform"), indent=2, sort_keys=True))
     return 0
