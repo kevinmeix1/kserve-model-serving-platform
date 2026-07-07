@@ -89,6 +89,8 @@ For workload right-sizing, HPA/VPA guardrails, and Airflow pool sizing, see [res
 
 For runtime network boundaries, mTLS, and allow-listed service flows, see [network security](docs/network-security.md).
 
+For auditable environment promotion with Argo CD and Argo Rollouts, see [GitOps promotion](docs/gitops-promotion.md).
+
 ## Canary Gates
 
 The challenger is recommended for promotion only when:

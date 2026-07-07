@@ -6,6 +6,7 @@ from pathlib import Path
 
 from kserve_model_platform.chaos import run_chaos_drill
 from kserve_model_platform.cli import demo, monitor, promote, rollback, simulate
+from kserve_model_platform.gitops_release import build_gitops_plan
 from kserve_model_platform.io import read_json, read_jsonl, write_json
 from kserve_model_platform.models import generate_requests, validate_payload
 from kserve_model_platform.monitoring import evaluate_canary
@@ -137,6 +138,20 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertEqual(report["allowed_flow_count"], 3)
             self.assertTrue(any(flow["destination"] == "challenger-predictor" for flow in report["allowed_flows"]))
             self.assertTrue((Path(tmp) / "reports" / "network_security.json").exists())
+
+    def test_gitops_plan_and_progressive_delivery_assets_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        gitops = (repo / "gitops" / "gitops-promotion.yaml").read_text(encoding="utf-8")
+
+        for expected in ["kind: Application", "kind: AppProject", "AnalysisTemplate", "Rollout", "argocd.argoproj.io/sync-wave"]:
+            self.assertIn(expected, gitops)
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = build_gitops_plan(tmp)
+
+            self.assertEqual(plan["deployment_controller"], "Argo CD")
+            self.assertIn("shadow-analysis", plan["progressive_delivery"])
+            self.assertTrue(any("Wilson" in gate for gate in plan["gates"]))
+            self.assertTrue((Path(tmp) / "reports" / "gitops_plan.json").exists())
 
     def test_rollout_control_uses_confidence_bound_and_next_step(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

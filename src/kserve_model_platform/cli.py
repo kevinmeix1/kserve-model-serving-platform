@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .chaos import run_chaos_drill
 from .dashboard import render_dashboard
+from .gitops_release import build_gitops_plan
 from .io import read_json, write_csv, write_json
 from .models import generate_requests
 from .monitoring import build_report, evaluate_canary
@@ -114,6 +115,7 @@ def demo(output: str | Path) -> dict:
     chaos_drill = run_chaos_drill(root)
     resource_optimization = build_resource_optimization_report(root)
     network_security = build_network_security_report(root)
+    gitops_plan = build_gitops_plan(root)
     idempotent = predict(root, generate_requests(1)[0])
     return {
         "deployment": deployment,
@@ -125,6 +127,7 @@ def demo(output: str | Path) -> dict:
         "chaos_drill": chaos_drill,
         "resource_optimization": resource_optimization,
         "network_security": network_security,
+        "gitops_plan": gitops_plan,
         "dashboard": monitoring["dashboard"],
         "idempotent_replay": idempotent.get("idempotent_replay", False),
     }
@@ -148,6 +151,7 @@ def main(argv: list[str] | None = None) -> int:
         "chaos-drill",
         "optimize-resources",
         "network-security",
+        "gitops-plan",
     ]:
         cmd = sub.add_parser(command)
         cmd.add_argument("--output", default=".local")
@@ -182,4 +186,6 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_resource_optimization_report(args.output), indent=2, sort_keys=True))
     elif args.command == "network-security":
         print(json.dumps(build_network_security_report(args.output), indent=2, sort_keys=True))
+    elif args.command == "gitops-plan":
+        print(json.dumps(build_gitops_plan(args.output), indent=2, sort_keys=True))
     return 0
