@@ -12,6 +12,7 @@ from kserve_model_platform.policy_audit import audit_platform_policy
 from kserve_model_platform.registry import aliases
 from kserve_model_platform.rollout_control import build_rollout_plan, evaluate_rollout, wilson_error_upper_bound
 from kserve_model_platform.serving import deploy, predict, route_alias
+from kserve_model_platform.traceability import build_trace_report
 
 
 class KServeModelServingPlatformTest(unittest.TestCase):
@@ -78,6 +79,19 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertIn("event_driven_scaling", passed)
             self.assertIn("no_latest_image_tags", report["failed_checks"])
             self.assertIn("immutable_image_digest", report["failed_checks"])
+
+    def test_trace_report_and_otel_collector_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        collector = (repo / "kubernetes" / "opentelemetry-collector.yaml").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = build_trace_report(tmp)
+
+            self.assertEqual(trace["span_count"], 5)
+            self.assertEqual(trace["root_service"], "gateway-api")
+            self.assertTrue(any(span["name"] == "shadow.compare" for span in trace["spans"]))
+            self.assertTrue((Path(tmp) / "reports" / "trace_report.json").exists())
+        for expected in ["kind: ConfigMap", "otlp", "k8sattributes", "memory_limiter", "prometheus", "batch"]:
+            self.assertIn(expected, collector)
 
     def test_rollout_control_uses_confidence_bound_and_next_step(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

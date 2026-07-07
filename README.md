@@ -81,6 +81,8 @@ For the operator-facing rollout planner, see [advanced rollout control plane](do
 
 For the policy-as-code audit layer, see [security and governance](docs/security-governance.md).
 
+For OpenTelemetry-style runtime traces, see [observability and tracing](docs/observability-tracing.md).
+
 ## Canary Gates
 
 The challenger is recommended for promotion only when:
