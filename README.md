@@ -93,6 +93,8 @@ For auditable environment promotion with Argo CD and Argo Rollouts, see [GitOps 
 
 For backup schedules, restore order, and RPO/RTO evidence, see [disaster recovery](docs/disaster-recovery.md).
 
+For serving model cards, request data cards, canary approval records, risk controls, and reproducibility hashes, see [governance evidence](docs/governance-evidence.md).
+
 ## Canary Gates
 
 The challenger is recommended for promotion only when:

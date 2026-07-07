@@ -8,6 +8,7 @@ from .chaos import run_chaos_drill
 from .dashboard import render_dashboard
 from .disaster_recovery import build_disaster_recovery_plan
 from .gitops_release import build_gitops_plan
+from .governance import build_governance_bundle
 from .io import read_json, write_csv, write_json
 from .models import generate_requests
 from .monitoring import build_report, evaluate_canary
@@ -86,6 +87,13 @@ def monitor(output: str | Path) -> dict:
     return {"report": report, "decision": decision, "rollout_plan": rollout_plan, "dashboard": str(dashboard)}
 
 
+def governance(output: str | Path) -> dict:
+    root = root_path(output)
+    if not (root / "reports" / "canary_decision.json").exists():
+        monitor(root)
+    return build_governance_bundle(root)
+
+
 def promote(output: str | Path) -> dict:
     root = root_path(output)
     decision_path = root / "reports" / "canary_decision.json"
@@ -118,6 +126,7 @@ def demo(output: str | Path) -> dict:
     network_security = build_network_security_report(root)
     gitops_plan = build_gitops_plan(root)
     disaster_recovery = build_disaster_recovery_plan(root)
+    governance_bundle = build_governance_bundle(root)
     idempotent = predict(root, generate_requests(1)[0])
     return {
         "deployment": deployment,
@@ -131,6 +140,7 @@ def demo(output: str | Path) -> dict:
         "network_security": network_security,
         "gitops_plan": gitops_plan,
         "disaster_recovery": disaster_recovery,
+        "governance_bundle": governance_bundle,
         "dashboard": monitoring["dashboard"],
         "idempotent_replay": idempotent.get("idempotent_replay", False),
     }
@@ -156,6 +166,7 @@ def main(argv: list[str] | None = None) -> int:
         "network-security",
         "gitops-plan",
         "dr-plan",
+        "governance-bundle",
     ]:
         cmd = sub.add_parser(command)
         cmd.add_argument("--output", default=".local")
@@ -194,4 +205,6 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_gitops_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "dr-plan":
         print(json.dumps(build_disaster_recovery_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "governance-bundle":
+        print(json.dumps(governance(args.output), indent=2, sort_keys=True))
     return 0

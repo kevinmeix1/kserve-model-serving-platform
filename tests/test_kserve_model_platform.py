@@ -8,6 +8,7 @@ from kserve_model_platform.chaos import run_chaos_drill
 from kserve_model_platform.cli import demo, monitor, promote, rollback, simulate
 from kserve_model_platform.disaster_recovery import build_disaster_recovery_plan
 from kserve_model_platform.gitops_release import build_gitops_plan
+from kserve_model_platform.governance import build_governance_bundle
 from kserve_model_platform.io import read_json, read_jsonl, write_json
 from kserve_model_platform.models import generate_requests, validate_payload
 from kserve_model_platform.monitoring import evaluate_canary
@@ -82,8 +83,8 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             passed = {check["name"] for check in report["checks"] if check["passed"]}
             self.assertIn("weighted_gateway_route", passed)
             self.assertIn("event_driven_scaling", passed)
+            self.assertIn("immutable_image_digest", passed)
             self.assertIn("no_latest_image_tags", report["failed_checks"])
-            self.assertIn("immutable_image_digest", report["failed_checks"])
 
     def test_trace_report_and_otel_collector_exist(self) -> None:
         repo = Path(__file__).resolve().parents[1]
@@ -167,6 +168,25 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertEqual(plan["restore_sequence"][0]["asset"], "namespace and serving CRDs")
             self.assertTrue(any(item["asset"] == "idempotency cache" for item in plan["restore_sequence"]))
             self.assertTrue((Path(tmp) / "reports" / "disaster_recovery_plan.json").exists())
+
+    def test_governance_evidence_bundle_and_kubernetes_assets_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        governance = (repo / "kubernetes" / "governance-evidence.yaml").read_text(encoding="utf-8")
+
+        for expected in ["kind: ConfigMap", "kind: Job", "model-card", "risk-register", "reproducibility-manifest"]:
+            self.assertIn(expected, governance)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = demo(root)
+            bundle = build_governance_bundle(root)
+            approval = read_json(root / "governance" / "approval_record.json")
+            manifest = read_json(root / "governance" / "reproducibility_manifest.json")
+
+            self.assertEqual(result["governance_bundle"]["release"]["decision"], "approved_for_promotion")
+            self.assertEqual(bundle["release"]["model_name"], "credit-risk")
+            self.assertEqual(approval["decision"], "approved_for_promotion")
+            self.assertTrue(any(item["exists"] and len(item["sha256"]) == 64 for item in manifest["artifact_hashes"]))
+            self.assertTrue((root / "reports" / "governance_evidence_bundle.json").exists())
 
     def test_rollout_control_uses_confidence_bound_and_next_step(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
