@@ -231,8 +231,24 @@ class KServeModelServingPlatformTest(unittest.TestCase):
 
         for expected in ["actions/upload-artifact@v6", "GITHUB_STEP_SUMMARY", "make ci-verify", "concurrency"]:
             self.assertIn(expected, workflow)
-        for expected in ["ci-verify:", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
+        for expected in ["ci-verify:", "index.html", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
             self.assertIn(expected, makefile)
+
+    def test_artifact_index_links_key_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = demo(root)
+            index = (root / "reports" / "index.html").read_text(encoding="utf-8")
+
+            self.assertTrue(result["artifact_index"].endswith("index.html"))
+            for expected in [
+                "kserve_serving_dashboard.html",
+                "canary_decision.json",
+                "governance_evidence_bundle.json",
+                "slo_error_budget.json",
+                "cloud_migration_plan.json",
+            ]:
+                self.assertIn(expected, index)
 
     def test_rollout_control_uses_confidence_bound_and_next_step(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -268,6 +284,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue(result["canary"]["passed"])
             self.assertTrue(result["idempotent_replay"])
             self.assertTrue((root / "reports" / "kserve_serving_dashboard.html").exists())
+            self.assertTrue((root / "reports" / "index.html").exists())
             self.assertEqual(result["simulation"]["success_count"], 120)
 
     def test_payload_contract_rejects_bad_request(self) -> None:

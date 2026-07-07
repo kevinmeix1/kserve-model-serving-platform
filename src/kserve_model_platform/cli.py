@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from .artifact_index import render_artifact_index
 from .chaos import run_chaos_drill
 from .cloud_migration import build_cloud_migration_plan
 from .dashboard import render_dashboard
@@ -138,6 +139,12 @@ def demo(output: str | Path) -> dict:
     governance_bundle = build_governance_bundle(root)
     slo_error_budget = build_slo_report(root)
     cloud_migration = build_cloud_migration_plan(root)
+    artifact_index = render_artifact_index(
+        root,
+        title="KServe Model Serving Platform",
+        description="Reviewer landing page for generated serving dashboard, rollout evidence, SLOs, migration, and reliability artifacts.",
+        dashboard="kserve_serving_dashboard.html",
+    )
     idempotent = predict(root, generate_requests(1)[0])
     return {
         "deployment": deployment,
@@ -154,6 +161,7 @@ def demo(output: str | Path) -> dict:
         "governance_bundle": governance_bundle,
         "slo_error_budget": slo_error_budget,
         "cloud_migration": cloud_migration,
+        "artifact_index": str(artifact_index),
         "dashboard": monitoring["dashboard"],
         "idempotent_replay": idempotent.get("idempotent_replay", False),
     }
