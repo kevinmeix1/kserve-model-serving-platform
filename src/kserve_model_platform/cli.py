@@ -8,6 +8,7 @@ from .dashboard import render_dashboard
 from .io import read_json, write_csv, write_json
 from .models import generate_requests
 from .monitoring import build_report, evaluate_canary
+from .policy_audit import audit_platform_policy
 from .registry import aliases as registry_aliases
 from .registry import promote_challenger, rollback as rollback_registry, seed_registry
 from .rollout_control import build_rollout_plan
@@ -104,12 +105,14 @@ def demo(output: str | Path) -> dict:
     deployment = deploy(root, challenger_percent=10)
     simulation = simulate(root, requests=120)
     monitoring = monitor(root)
+    policy_audit = audit_platform_policy(Path.cwd(), output_root=root)
     idempotent = predict(root, generate_requests(1)[0])
     return {
         "deployment": deployment,
         "simulation": simulation,
         "canary": monitoring["decision"],
         "rollout_plan": monitoring["rollout_plan"],
+        "policy_audit": policy_audit,
         "dashboard": monitoring["dashboard"],
         "idempotent_replay": idempotent.get("idempotent_replay", False),
     }
@@ -118,7 +121,7 @@ def demo(output: str | Path) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="KServe model serving platform")
     sub = parser.add_subparsers(dest="command", required=True)
-    for command in ["demo", "deploy", "predict", "simulate", "monitor", "promote", "rollback", "health", "plan-rollout"]:
+    for command in ["demo", "deploy", "predict", "simulate", "monitor", "promote", "rollback", "health", "plan-rollout", "policy-audit"]:
         cmd = sub.add_parser(command)
         cmd.add_argument("--output", default=".local")
         if command in {"deploy", "simulate"}:
@@ -142,4 +145,6 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(health(args.output), indent=2, sort_keys=True))
     elif args.command == "plan-rollout":
         print(json.dumps(build_rollout_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "policy-audit":
+        print(json.dumps(audit_platform_policy(Path.cwd(), output_root=args.output), indent=2, sort_keys=True))
     return 0

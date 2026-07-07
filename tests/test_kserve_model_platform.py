@@ -8,6 +8,7 @@ from kserve_model_platform.cli import demo, monitor, promote, rollback, simulate
 from kserve_model_platform.io import read_json, read_jsonl, write_json
 from kserve_model_platform.models import generate_requests, validate_payload
 from kserve_model_platform.monitoring import evaluate_canary
+from kserve_model_platform.policy_audit import audit_platform_policy
 from kserve_model_platform.registry import aliases
 from kserve_model_platform.rollout_control import build_rollout_plan, evaluate_rollout, wilson_error_upper_bound
 from kserve_model_platform.serving import deploy, predict, route_alias
@@ -63,6 +64,20 @@ class KServeModelServingPlatformTest(unittest.TestCase):
 
         for expected in ["ScaledObject", "prometheus", "fallback", "horizontalPodAutoscalerConfig", "activationThreshold"]:
             self.assertIn(expected, autoscaling)
+
+    def test_admission_policies_and_policy_audit_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        admission = (repo / "kubernetes" / "admission-policies.yaml").read_text(encoding="utf-8")
+
+        for expected in ["ValidatingAdmissionPolicy", "ValidatingAdmissionPolicyBinding", "ImageValidatingPolicy", "slsa-provenance"]:
+            self.assertIn(expected, admission)
+        with tempfile.TemporaryDirectory() as tmp:
+            report = audit_platform_policy(repo, output_root=tmp)
+            passed = {check["name"] for check in report["checks"] if check["passed"]}
+            self.assertIn("weighted_gateway_route", passed)
+            self.assertIn("event_driven_scaling", passed)
+            self.assertIn("no_latest_image_tags", report["failed_checks"])
+            self.assertIn("immutable_image_digest", report["failed_checks"])
 
     def test_rollout_control_uses_confidence_bound_and_next_step(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

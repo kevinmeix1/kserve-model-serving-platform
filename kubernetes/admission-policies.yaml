@@ -1,0 +1,43 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: require-serving-runtime-guardrails
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  validations:
+    - expression: "has(object.spec.securityContext) && object.spec.securityContext.runAsNonRoot == true"
+      message: "Serving pods must run as non-root."
+    - expression: "object.spec.containers.all(c, has(c.resources.requests) && has(c.resources.limits))"
+      message: "Serving containers must define resource requests and limits."
+    - expression: "object.spec.containers.all(c, has(c.securityContext) && c.securityContext.allowPrivilegeEscalation == false)"
+      message: "Privilege escalation must be disabled."
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: require-serving-runtime-guardrails
+spec:
+  policyName: require-serving-runtime-guardrails
+  validationActions: ["Deny", "Audit"]
+---
+apiVersion: policies.kyverno.io/v1
+kind: ImageValidatingPolicy
+metadata:
+  name: require-signed-immutable-serving-images
+spec:
+  matchImageReferences:
+    - glob: ghcr.io/kevinmeix1/kserve-model-serving-platform*
+  validationConfigurations:
+    mutateDigest: true
+    verifyDigest: true
+    required: true
+  attestations:
+    - name: slsa-provenance
+      intoto:
+        type: https://slsa.dev/provenance/v1
