@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from kserve_model_platform.chaos import run_chaos_drill
+from kserve_model_platform.cloud_migration import build_cloud_migration_plan
 from kserve_model_platform.cli import demo, monitor, promote, rollback, simulate
 from kserve_model_platform.disaster_recovery import build_disaster_recovery_plan
 from kserve_model_platform.gitops_release import build_gitops_plan
@@ -204,6 +205,24 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertEqual(report["slos"][0]["name"], "serving_availability")
             self.assertTrue(any(item["name"] == "shadow_score_parity" for item in report["slos"]))
             self.assertTrue((root / "reports" / "slo_error_budget.json").exists())
+
+    def test_cloud_migration_plan_and_infra_assets_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        nodepools = (repo / "kubernetes" / "cloud-nodepools.yaml").read_text(encoding="utf-8")
+        terraform = (repo / "infra" / "terraform" / "aws" / "main.tf").read_text(encoding="utf-8")
+
+        for expected in ["NodePool", "EC2NodeClass", "WhenEmptyOrUnderutilized"]:
+            self.assertIn(expected, nodepools)
+        for expected in ["cluster_compute_config", "node_pools", "aws_s3_bucket"]:
+            self.assertIn(expected, terraform)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = demo(root)
+            plan = build_cloud_migration_plan(root)
+
+            self.assertEqual(result["cloud_migration"]["primary_target"], "AWS EKS Auto Mode")
+            self.assertEqual(plan["managed_service_mapping"]["serving"], "KServe Standard mode on EKS with Gateway API")
+            self.assertTrue((root / "reports" / "cloud_migration_plan.json").exists())
 
     def test_rollout_control_uses_confidence_bound_and_next_step(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

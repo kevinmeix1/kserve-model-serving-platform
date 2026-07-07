@@ -97,6 +97,8 @@ For serving model cards, request data cards, canary approval records, risk contr
 
 For multi-window burn alerts, canary-freeze policy, and error-budget reports, see [SLO and error budget automation](docs/slo-error-budget.md).
 
+For EKS Auto Mode, Terraform, managed-service mappings, and portability notes, see [cloud migration](docs/cloud-migration.md).
+
 ## Canary Gates
 
 The challenger is recommended for promotion only when:
