@@ -91,6 +91,8 @@ For runtime network boundaries, mTLS, and allow-listed service flows, see [netwo
 
 For auditable environment promotion with Argo CD and Argo Rollouts, see [GitOps promotion](docs/gitops-promotion.md).
 
+For backup schedules, restore order, and RPO/RTO evidence, see [disaster recovery](docs/disaster-recovery.md).
+
 ## Canary Gates
 
 The challenger is recommended for promotion only when:

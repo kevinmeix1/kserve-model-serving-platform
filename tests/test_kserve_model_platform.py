@@ -6,6 +6,7 @@ from pathlib import Path
 
 from kserve_model_platform.chaos import run_chaos_drill
 from kserve_model_platform.cli import demo, monitor, promote, rollback, simulate
+from kserve_model_platform.disaster_recovery import build_disaster_recovery_plan
 from kserve_model_platform.gitops_release import build_gitops_plan
 from kserve_model_platform.io import read_json, read_jsonl, write_json
 from kserve_model_platform.models import generate_requests, validate_payload
@@ -152,6 +153,20 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertIn("shadow-analysis", plan["progressive_delivery"])
             self.assertTrue(any("Wilson" in gate for gate in plan["gates"]))
             self.assertTrue((Path(tmp) / "reports" / "gitops_plan.json").exists())
+
+    def test_disaster_recovery_plan_and_backup_assets_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        dr = (repo / "kubernetes" / "disaster-recovery.yaml").read_text(encoding="utf-8")
+
+        for expected in ["kind: Schedule", "BackupStorageLocation", "VolumeSnapshotClass", "restore-order"]:
+            self.assertIn(expected, dr)
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = build_disaster_recovery_plan(tmp)
+
+            self.assertLessEqual(plan["rpo_minutes"], 15)
+            self.assertEqual(plan["restore_sequence"][0]["asset"], "namespace and serving CRDs")
+            self.assertTrue(any(item["asset"] == "idempotency cache" for item in plan["restore_sequence"]))
+            self.assertTrue((Path(tmp) / "reports" / "disaster_recovery_plan.json").exists())
 
     def test_rollout_control_uses_confidence_bound_and_next_step(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .chaos import run_chaos_drill
 from .dashboard import render_dashboard
+from .disaster_recovery import build_disaster_recovery_plan
 from .gitops_release import build_gitops_plan
 from .io import read_json, write_csv, write_json
 from .models import generate_requests
@@ -116,6 +117,7 @@ def demo(output: str | Path) -> dict:
     resource_optimization = build_resource_optimization_report(root)
     network_security = build_network_security_report(root)
     gitops_plan = build_gitops_plan(root)
+    disaster_recovery = build_disaster_recovery_plan(root)
     idempotent = predict(root, generate_requests(1)[0])
     return {
         "deployment": deployment,
@@ -128,6 +130,7 @@ def demo(output: str | Path) -> dict:
         "resource_optimization": resource_optimization,
         "network_security": network_security,
         "gitops_plan": gitops_plan,
+        "disaster_recovery": disaster_recovery,
         "dashboard": monitoring["dashboard"],
         "idempotent_replay": idempotent.get("idempotent_replay", False),
     }
@@ -152,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
         "optimize-resources",
         "network-security",
         "gitops-plan",
+        "dr-plan",
     ]:
         cmd = sub.add_parser(command)
         cmd.add_argument("--output", default=".local")
@@ -188,4 +192,6 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_network_security_report(args.output), indent=2, sort_keys=True))
     elif args.command == "gitops-plan":
         print(json.dumps(build_gitops_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "dr-plan":
+        print(json.dumps(build_disaster_recovery_plan(args.output), indent=2, sort_keys=True))
     return 0
