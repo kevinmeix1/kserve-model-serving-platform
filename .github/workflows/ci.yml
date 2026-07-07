@@ -4,15 +4,53 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   demo-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
+      - name: Static Python compile
+        run: PYTHONPATH=src python3 -m compileall -q src tests
       - name: Run deterministic demo
         run: make demo
+      - name: Validate generated artifacts
+        run: make ci-verify
       - name: Run tests
         run: make test
+      - name: Build CI summary
+        if: always()
+        run: |
+          {
+            echo "### KServe serving demo artifacts"
+            echo ""
+            echo "- Dashboard: .local/reports/kserve_serving_dashboard.html"
+            echo "- Governance evidence: .local/reports/governance_evidence_bundle.json"
+            echo "- SLO report: .local/reports/slo_error_budget.json"
+            echo "- Cloud migration plan: .local/reports/cloud_migration_plan.json"
+            echo ""
+            echo "Generated reports:"
+            find .local/reports -maxdepth 1 -type f | sort | sed 's/^/- /'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload demo artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: kserve-serving-demo-artifacts
+          path: |
+            .local/reports
+            .local/governance
+            .local/deployments
+            .local/registry
+            .local/logs
+          if-no-files-found: error
