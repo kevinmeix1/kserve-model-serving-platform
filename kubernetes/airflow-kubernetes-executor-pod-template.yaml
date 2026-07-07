@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: airflow-serving-worker-template
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    app.kubernetes.io/component: airflow-worker-template
+spec:
+  serviceAccountName: credit-risk-predictor
+  priorityClassName: model-serving-critical
+  restartPolicy: Never
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: kserve-model-serving-platform
+  initContainers:
+    - name: wait-for-kserve-controller
+      image: bitnami/kubectl:latest
+      command: ["sh", "-c"]
+      args:
+        - "kubectl wait --for=condition=Available deployment/kserve-controller-manager -n kserve --timeout=120s"
+  containers:
+    - name: base
+      image: ghcr.io/kevinmeix1/kserve-model-serving-platform:latest
+      command: ["bash", "-lc", "make demo"]
+      envFrom:
+        - configMapRef:
+            name: credit-risk-serving-policy
+      startupProbe:
+        exec:
+          command: ["python", "-m", "kserve_model_platform", "health"]
+        failureThreshold: 12
+        periodSeconds: 5
+      readinessProbe:
+        exec:
+          command: ["python", "-m", "kserve_model_platform", "health"]
+        periodSeconds: 15
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: "2"
+          memory: 2Gi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]

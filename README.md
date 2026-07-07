@@ -75,6 +75,8 @@ See [production-grade refinements](docs/production-grade-refinements.md) for the
 
 For the latest progressive rollout orchestration pass, see [advanced orchestration assessment](docs/advanced-orchestration-assessment.md).
 
+For the Kubernetes/Airflow robustness layer, see [Kubernetes and Airflow robustness](docs/kubernetes-airflow-robustness.md).
+
 ## Canary Gates
 
 The challenger is recommended for promotion only when:
