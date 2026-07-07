@@ -1,0 +1,23 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: credit-risk-router
+  namespace: mlops-serving
+  annotations:
+    mlops.dev/rollback-reason: previous-champion-restore
+spec:
+  predictor:
+    serviceAccountName: credit-risk-predictor
+    canaryTrafficPercent: 0
+    model:
+      modelFormat:
+        name: sklearn
+      protocolVersion: v2
+      storageUri: pvc://mlflow-models/credit-risk/previous-champion
+      resources:
+        requests:
+          cpu: "250m"
+          memory: "512Mi"
+        limits:
+          cpu: "1"
+          memory: "1Gi"

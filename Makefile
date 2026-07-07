@@ -1,0 +1,39 @@
+.PHONY: demo deploy predict simulate monitor promote rollback health minikube-up test clean
+
+demo:
+	PYTHONPATH=src python3 -m kserve_model_platform demo --output .local
+
+deploy:
+	PYTHONPATH=src python3 -m kserve_model_platform deploy --output .local
+
+predict:
+	PYTHONPATH=src python3 -m kserve_model_platform predict --output .local
+
+simulate:
+	PYTHONPATH=src python3 -m kserve_model_platform simulate --output .local
+
+monitor:
+	PYTHONPATH=src python3 -m kserve_model_platform monitor --output .local
+
+promote:
+	PYTHONPATH=src python3 -m kserve_model_platform promote --output .local
+
+rollback:
+	PYTHONPATH=src python3 -m kserve_model_platform rollback --output .local
+
+health:
+	PYTHONPATH=src python3 -m kserve_model_platform health --output .local
+
+minikube-up:
+	@echo "Start Minikube and apply the serving stack:"
+	@echo "  minikube start --cpus=4 --memory=8192"
+	@echo "  kubectl create namespace mlops-serving --dry-run=client -o yaml | kubectl apply -f -"
+	@echo "  kubectl apply -f kserve/production-hardening.yaml"
+	@echo "  kubectl apply -f kserve/inferenceservice-canary.yaml"
+	@echo "  kubectl apply -f monitoring/prometheus/prometheus.yml"
+
+test:
+	PYTHONPATH=src python3 -m unittest discover -s tests -v
+
+clean:
+	rm -rf .local

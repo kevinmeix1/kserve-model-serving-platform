@@ -1,0 +1,63 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: credit-risk-router
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    app.kubernetes.io/component: inference-router
+    mlops.dev/model: credit-risk
+    serving.mlops.dev/pattern: champion-challenger
+  annotations:
+    autoscaling.knative.dev/min-scale: "2"
+    autoscaling.knative.dev/max-scale: "8"
+    autoscaling.knative.dev/target: "10"
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/metrics"
+    prometheus.io/port: "8080"
+spec:
+  predictor:
+    serviceAccountName: credit-risk-predictor
+    canaryTrafficPercent: 10
+    model:
+      modelFormat:
+        name: sklearn
+      protocolVersion: v2
+      storageUri: pvc://mlflow-models/credit-risk/challenger
+      resources:
+        requests:
+          cpu: "250m"
+          memory: "512Mi"
+        limits:
+          cpu: "1"
+          memory: "1Gi"
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: credit-risk-champion
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    app.kubernetes.io/component: champion-inference
+    mlops.dev/model: credit-risk
+    mlops.dev/stage: champion
+  annotations:
+    autoscaling.knative.dev/min-scale: "2"
+    autoscaling.knative.dev/max-scale: "8"
+    autoscaling.knative.dev/target: "10"
+spec:
+  predictor:
+    serviceAccountName: credit-risk-predictor
+    model:
+      modelFormat:
+        name: sklearn
+      protocolVersion: v2
+      storageUri: pvc://mlflow-models/credit-risk/champion
+      resources:
+        requests:
+          cpu: "250m"
+          memory: "512Mi"
+        limits:
+          cpu: "1"
+          memory: "1Gi"

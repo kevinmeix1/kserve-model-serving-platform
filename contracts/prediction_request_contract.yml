@@ -1,0 +1,46 @@
+contract_name: credit_risk_prediction_request
+owner: ml-platform-serving
+version: 1
+description: Online request contract enforced before model invocation.
+required_fields:
+  - request_id
+  - customer_id
+  - product
+  - income
+  - debt_ratio
+  - delinquencies
+  - utilization
+  - employment_years
+fields:
+  request_id:
+    type: string
+    idempotency_key: true
+  customer_id:
+    type: string
+  product:
+    type: string
+    allowed_values:
+      - card
+      - loan
+      - mortgage
+  income:
+    type: float
+    min: 0
+  debt_ratio:
+    type: float
+    min: 0
+    max: 2
+  delinquencies:
+    type: integer
+    min: 0
+  utilization:
+    type: float
+    min: 0
+    max: 1.5
+  employment_years:
+    type: float
+    min: 0
+serving_slos:
+  p95_latency_ms: 35
+  max_error_rate: 0.01
+  max_shadow_score_delta: 0.12

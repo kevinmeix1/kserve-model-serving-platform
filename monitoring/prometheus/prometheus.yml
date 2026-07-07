@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: kserve-credit-risk
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - credit-risk-router.mlops-serving.svc.cluster.local:8080
