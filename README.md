@@ -99,6 +99,8 @@ For multi-window burn alerts, canary-freeze policy, and error-budget reports, se
 
 For EKS Auto Mode, Terraform, managed-service mappings, and portability notes, see [cloud migration](docs/cloud-migration.md).
 
+For GitHub artifact attestations, SLSA provenance, Sigstore policy-controller admission, and checksum evidence, see [supply chain provenance](docs/supply-chain-provenance.md).
+
 ## Canary Gates
 
 The challenger is recommended for promotion only when:

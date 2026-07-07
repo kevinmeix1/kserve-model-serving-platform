@@ -20,8 +20,11 @@ def render_artifact_index(root: str | Path, *, title: str, description: str, das
         ("Canary Decision", "canary_decision.json", "Automated rollout gate showing whether the challenger should advance, hold, or roll back."),
         ("Governance Evidence", "governance_evidence_bundle.json", "Model card, approval record, registry aliases, risk register, and reproducibility hashes."),
         ("SLO Error Budget", "slo_error_budget.json", "Availability, latency, error-rate, and prediction-quality burn-rate evidence."),
+        ("Supply Chain Evidence", "supply_chain_evidence.json", "Artifact hashes, GitHub attestations, SLSA provenance, and Sigstore policy controls."),
         ("Cloud Migration Plan", "cloud_migration_plan.json", "KServe deployment migration notes for managed Kubernetes and cloud model platforms."),
         ("Disaster Recovery Plan", "disaster_recovery_plan.json", "Backup, restore, registry, and serving failover plan for production inference."),
+        ("Traceability", "trace_report.json", "Request, model alias, rollout, and workload trace links for serving investigations."),
+        ("GitOps Promotion", "gitops_plan.json", "Environment promotion plan with Argo CD, progressive delivery, and rollback controls."),
     ]
     card_html = "\n".join(
         f"""

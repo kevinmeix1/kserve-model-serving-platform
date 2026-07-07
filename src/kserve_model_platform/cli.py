@@ -23,6 +23,7 @@ from .rollout_control import build_rollout_plan
 from .serving import deploy as deploy_kserve
 from .serving import health, predict
 from .slo import build_slo_report
+from .supply_chain import build_supply_chain_evidence
 from .traceability import build_trace_report
 
 
@@ -145,6 +146,13 @@ def demo(output: str | Path) -> dict:
         description="Reviewer landing page for generated serving dashboard, rollout evidence, SLOs, migration, and reliability artifacts.",
         dashboard="kserve_serving_dashboard.html",
     )
+    supply_chain = build_supply_chain_evidence(
+        root,
+        project="KServe Model Serving Platform",
+        artifact_name="kserve-serving-demo-artifacts",
+        workflow="KServe Serving CI",
+        namespace="mlops-serving",
+    )
     idempotent = predict(root, generate_requests(1)[0])
     return {
         "deployment": deployment,
@@ -162,6 +170,7 @@ def demo(output: str | Path) -> dict:
         "slo_error_budget": slo_error_budget,
         "cloud_migration": cloud_migration,
         "artifact_index": str(artifact_index),
+        "supply_chain": supply_chain,
         "dashboard": monitoring["dashboard"],
         "idempotent_replay": idempotent.get("idempotent_replay", False),
     }
@@ -190,6 +199,7 @@ def main(argv: list[str] | None = None) -> int:
         "governance-bundle",
         "slo-report",
         "cloud-plan",
+        "supply-chain",
     ]:
         cmd = sub.add_parser(command)
         cmd.add_argument("--output", default=".local")
@@ -234,4 +244,6 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(slo_report(args.output), indent=2, sort_keys=True))
     elif args.command == "cloud-plan":
         print(json.dumps(build_cloud_migration_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "supply-chain":
+        print(json.dumps(build_supply_chain_evidence(args.output, project="KServe Model Serving Platform", artifact_name="kserve-serving-demo-artifacts", workflow="KServe Serving CI", namespace="mlops-serving"), indent=2, sort_keys=True))
     return 0

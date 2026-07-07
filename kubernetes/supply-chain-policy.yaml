@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlops-serving
+  labels:
+    policy.sigstore.dev/include: "true"
+    app.kubernetes.io/part-of: kserve-model-serving-platform
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-policy-controller
+  namespace: cosign-system
+data:
+  no-match-policy: warn
+---
+apiVersion: policy.sigstore.dev/v1alpha1
+kind: ClusterImagePolicy
+metadata:
+  name: kserve-serving-slsa-provenance
+spec:
+  images:
+    - glob: ghcr.io/kevinmeix1/kserve-model-serving-platform**
+  authorities:
+    - name: github-actions-keyless
+      keyless:
+        url: https://fulcio.sigstore.dev
+        identities:
+          - issuer: https://token.actions.githubusercontent.com
+            subjectRegExp: https://github.com/kevinmeix1/kserve-model-serving-platform/.github/workflows/.*@refs/heads/main
+      attestations:
+        - name: slsa-provenance
+          predicateType: https://slsa.dev/provenance/v1
+          policy:
+            type: cue
+            data: |
+              predicateType: "https://slsa.dev/provenance/v1"

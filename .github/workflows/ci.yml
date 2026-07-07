@@ -6,6 +6,9 @@ on:
 
 permissions:
   contents: read
+  id-token: write
+  attestations: write
+  artifact-metadata: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -38,6 +41,7 @@ jobs:
             echo "- Governance evidence: .local/reports/governance_evidence_bundle.json"
             echo "- SLO report: .local/reports/slo_error_budget.json"
             echo "- Cloud migration plan: .local/reports/cloud_migration_plan.json"
+            echo "- Supply-chain evidence: .local/reports/supply_chain_evidence.json"
             echo ""
             echo "Generated reports:"
             find .local/reports -maxdepth 1 -type f | sort | sed 's/^/- /'
@@ -54,3 +58,8 @@ jobs:
             .local/registry
             .local/logs
           if-no-files-found: error
+      - name: Attest demo report provenance
+        if: github.event_name == 'push'
+        uses: actions/attest@v4
+        with:
+          subject-path: ${{ github.workspace }}/.local/reports/**
