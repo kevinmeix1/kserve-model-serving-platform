@@ -23,7 +23,9 @@ class KServeModelServingPlatformTest(unittest.TestCase):
 
         for expected in ["KubernetesPodOperator", "task_group", "BranchPythonOperator", "Asset", "CANARY_STEPS", "expand("]:
             self.assertIn(expected, dag_text)
-        for expected in ["HorizontalPodAutoscaler", "Job", "RoleBinding", "ConfigMap", "securityContext"]:
+        for expected in ["deferrable=True", "pod_template_file", "traffic_policy_and_capacity", "reserve_kueue_canary_analysis_quota"]:
+            self.assertIn(expected, dag_text)
+        for expected in ["HorizontalPodAutoscaler", "Job", "RoleBinding", "ConfigMap", "securityContext", "kueue.x-k8s.io/queue-name"]:
             self.assertIn(expected, workload_text)
 
     def test_kubernetes_governance_and_airflow_pod_template_exist(self) -> None:
@@ -35,6 +37,24 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertIn(expected, governance)
         for expected in ["initContainers", "startupProbe", "readinessProbe", "topologySpreadConstraints"]:
             self.assertIn(expected, pod_template)
+
+    def test_kueue_and_weighted_gateway_assets_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        admission = (repo / "kubernetes" / "kueue-admission-control.yaml").read_text(encoding="utf-8")
+        traffic = (repo / "kubernetes" / "progressive-delivery-policy.yaml").read_text(encoding="utf-8")
+
+        for expected in [
+            "ResourceFlavor",
+            "ClusterQueue",
+            "LocalQueue",
+            "WorkloadPriorityClass",
+            "credit-risk-serving-queue",
+            "borrowingLimit",
+            "preemption",
+        ]:
+            self.assertIn(expected, admission)
+        for expected in ["HTTPRoute", "credit-risk-weighted-route", "weight: 95", "weight: 5", "credit-risk-emergency-rollback-route"]:
+            self.assertIn(expected, traffic)
 
     def test_demo_writes_dashboard_and_passes_canary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

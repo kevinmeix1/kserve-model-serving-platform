@@ -35,6 +35,14 @@ def kserve_pod(task_id: str, command: str, *, priority_weight: int = 1):
         get_logs=True,
         is_delete_operator_pod=True,
         in_cluster=True,
+        deferrable=True,
+        logging_interval=20,
+        reattach_on_restart=True,
+        on_finish_action="delete_pod",
+        on_kill_action="delete_pod",
+        startup_timeout_seconds=300,
+        execution_timeout=timedelta(hours=1),
+        pod_template_file="/opt/airflow/dags/repo/kubernetes/airflow-kubernetes-executor-pod-template.yaml",
         pool="model_serving_release_pool",
         priority_weight=priority_weight,
         retries=2,
@@ -103,6 +111,26 @@ if AIRFLOW_AVAILABLE:
             [collect_metrics, compare_shadow] >> create_incident_snapshot
             return create_incident_snapshot
 
+        @task_group(group_id="traffic_policy_and_capacity")
+        def traffic_policy_group():
+            reserve_canary_quota = kserve_pod(
+                "reserve_kueue_canary_analysis_quota",
+                "kubectl get localqueue credit-risk-serving-queue -n mlops-serving",
+                priority_weight=4,
+            )
+            validate_gateway_weights = kserve_pod(
+                "validate_gateway_http_route_weights",
+                "kubectl get httproute credit-risk-weighted-route -n mlops-serving -o yaml",
+                priority_weight=4,
+            )
+            wait_for_route_convergence = kserve_pod(
+                "wait_for_route_convergence_deferrable",
+                "kubectl wait --for=condition=Accepted httproute/credit-risk-weighted-route -n mlops-serving --timeout=5m",
+                priority_weight=5,
+            )
+            reserve_canary_quota >> validate_gateway_weights >> wait_for_route_convergence
+            return wait_for_route_convergence
+
         @task
         def decide_promotion() -> str:
             return "promote_challenger"
@@ -115,7 +143,7 @@ if AIRFLOW_AVAILABLE:
         end = EmptyOperator(task_id="rollout_complete")
 
         steps = rollout_steps()
-        start >> preflight_group() >> progressive_traffic_group(steps) >> observability_group() >> branch
+        start >> preflight_group() >> progressive_traffic_group(steps) >> observability_group() >> traffic_policy_group() >> branch
         branch >> promote >> publish >> end
         branch >> rollback >> publish
 

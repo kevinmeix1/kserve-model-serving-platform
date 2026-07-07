@@ -46,6 +46,8 @@ metadata:
   labels:
     app.kubernetes.io/name: kserve-model-serving-platform
     app.kubernetes.io/component: release-analysis
+    kueue.x-k8s.io/queue-name: credit-risk-serving-queue
+    kueue.x-k8s.io/priority-class: serving-release-critical
 spec:
   backoffLimit: 2
   ttlSecondsAfterFinished: 86400

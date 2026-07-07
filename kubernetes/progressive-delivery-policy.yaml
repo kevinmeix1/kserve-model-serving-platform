@@ -1,0 +1,56 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: credit-risk-weighted-route
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    app.kubernetes.io/component: progressive-delivery
+spec:
+  parentRefs:
+    - name: internal-ml-gateway
+      namespace: platform-ingress
+  hostnames:
+    - credit-risk.internal.example.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v2/models/credit-risk
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: x-model-release-policy
+                value: progressive-canary
+      backendRefs:
+        - name: credit-risk-champion
+          port: 80
+          weight: 95
+        - name: credit-risk-challenger
+          port: 80
+          weight: 5
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: credit-risk-emergency-rollback-route
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    app.kubernetes.io/component: rollback
+spec:
+  parentRefs:
+    - name: internal-ml-gateway
+      namespace: platform-ingress
+  hostnames:
+    - credit-risk.internal.example.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v2/models/credit-risk
+      backendRefs:
+        - name: credit-risk-champion
+          port: 80
+          weight: 100

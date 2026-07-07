@@ -1,0 +1,79 @@
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ResourceFlavor
+metadata:
+  name: serving-cpu
+spec:
+  nodeLabels:
+    workload-class: serving
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: WorkloadPriorityClass
+metadata:
+  name: serving-release-critical
+value: 100000
+description: "Canary analysis, rollback, and release verification jobs."
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: credit-risk-serving-cluster-queue
+spec:
+  namespaceSelector: {}
+  queueingStrategy: BestEffortFIFO
+  resourceGroups:
+    - coveredResources: ["cpu", "memory", "pods"]
+      flavors:
+        - name: serving-cpu
+          resources:
+            - name: cpu
+              nominalQuota: "6"
+              borrowingLimit: "2"
+            - name: memory
+              nominalQuota: 16Gi
+              borrowingLimit: 4Gi
+            - name: pods
+              nominalQuota: "25"
+  preemption:
+    reclaimWithinCohort: Any
+    withinClusterQueue: LowerPriority
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  name: credit-risk-serving-queue
+  namespace: mlops-serving
+spec:
+  clusterQueue: credit-risk-serving-cluster-queue
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: credit-risk-canary-admission-smoke
+  namespace: mlops-serving
+  labels:
+    kueue.x-k8s.io/queue-name: credit-risk-serving-queue
+    kueue.x-k8s.io/priority-class: serving-release-critical
+    app.kubernetes.io/name: kserve-model-serving-platform
+    app.kubernetes.io/component: admission-smoke
+spec:
+  parallelism: 2
+  completions: 2
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      priorityClassName: model-serving-critical
+      restartPolicy: Never
+      containers:
+        - name: canary-admission-smoke
+          image: ghcr.io/kevinmeix1/kserve-model-serving-platform:latest
+          command: ["bash", "-lc"]
+          args:
+            - "python -m kserve_model_platform health"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
