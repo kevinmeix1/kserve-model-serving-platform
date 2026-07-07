@@ -1,4 +1,4 @@
-.PHONY: demo deploy predict simulate monitor promote rollback health minikube-up test clean
+.PHONY: demo deploy predict simulate monitor promote rollback health minikube-up kubernetes-plan test clean
 
 demo:
 	PYTHONPATH=src python3 -m kserve_model_platform demo --output .local
@@ -30,7 +30,11 @@ minikube-up:
 	@echo "  kubectl create namespace mlops-serving --dry-run=client -o yaml | kubectl apply -f -"
 	@echo "  kubectl apply -f kserve/production-hardening.yaml"
 	@echo "  kubectl apply -f kserve/inferenceservice-canary.yaml"
+	@echo "  kubectl apply -f kubernetes/serving-release-workloads.yaml"
 	@echo "  kubectl apply -f monitoring/prometheus/prometheus.yml"
+
+kubernetes-plan:
+	@find kserve kubernetes monitoring -name '*.yaml' -maxdepth 3 -print
 
 test:
 	PYTHONPATH=src python3 -m unittest discover -s tests -v

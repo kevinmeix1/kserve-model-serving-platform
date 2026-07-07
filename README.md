@@ -73,6 +73,8 @@ make test        # run unit and integration tests
 
 See [production-grade refinements](docs/production-grade-refinements.md) for the KServe hardening, traffic policy, shadow scoring, canary gates, and rollback improvements.
 
+For the latest progressive rollout orchestration pass, see [advanced orchestration assessment](docs/advanced-orchestration-assessment.md).
+
 ## Canary Gates
 
 The challenger is recommended for promotion only when:

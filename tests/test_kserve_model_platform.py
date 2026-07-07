@@ -13,6 +13,19 @@ from kserve_model_platform.serving import deploy, predict, route_alias
 
 
 class KServeModelServingPlatformTest(unittest.TestCase):
+    def test_advanced_rollout_dag_and_kubernetes_assets_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        dag = repo / "airflow" / "dags" / "progressive_kserve_rollout_dag.py"
+        workloads = repo / "kubernetes" / "serving-release-workloads.yaml"
+
+        dag_text = dag.read_text(encoding="utf-8")
+        workload_text = workloads.read_text(encoding="utf-8")
+
+        for expected in ["KubernetesPodOperator", "task_group", "BranchPythonOperator", "Asset", "CANARY_STEPS", "expand("]:
+            self.assertIn(expected, dag_text)
+        for expected in ["HorizontalPodAutoscaler", "Job", "RoleBinding", "ConfigMap", "securityContext"]:
+            self.assertIn(expected, workload_text)
+
     def test_demo_writes_dashboard_and_passes_canary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
