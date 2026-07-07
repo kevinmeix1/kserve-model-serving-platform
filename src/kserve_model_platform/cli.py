@@ -12,6 +12,7 @@ from .monitoring import build_report, evaluate_canary
 from .policy_audit import audit_platform_policy
 from .registry import aliases as registry_aliases
 from .registry import promote_challenger, rollback as rollback_registry, seed_registry
+from .resource_optimizer import build_resource_optimization_report
 from .rollout_control import build_rollout_plan
 from .serving import deploy as deploy_kserve
 from .serving import health, predict
@@ -110,6 +111,7 @@ def demo(output: str | Path) -> dict:
     policy_audit = audit_platform_policy(Path.cwd(), output_root=root)
     trace_report = build_trace_report(root)
     chaos_drill = run_chaos_drill(root)
+    resource_optimization = build_resource_optimization_report(root)
     idempotent = predict(root, generate_requests(1)[0])
     return {
         "deployment": deployment,
@@ -119,6 +121,7 @@ def demo(output: str | Path) -> dict:
         "policy_audit": policy_audit,
         "trace_report": trace_report,
         "chaos_drill": chaos_drill,
+        "resource_optimization": resource_optimization,
         "dashboard": monitoring["dashboard"],
         "idempotent_replay": idempotent.get("idempotent_replay", False),
     }
@@ -140,6 +143,7 @@ def main(argv: list[str] | None = None) -> int:
         "policy-audit",
         "trace-report",
         "chaos-drill",
+        "optimize-resources",
     ]:
         cmd = sub.add_parser(command)
         cmd.add_argument("--output", default=".local")
@@ -170,4 +174,6 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_trace_report(args.output), indent=2, sort_keys=True))
     elif args.command == "chaos-drill":
         print(json.dumps(run_chaos_drill(args.output), indent=2, sort_keys=True))
+    elif args.command == "optimize-resources":
+        print(json.dumps(build_resource_optimization_report(args.output), indent=2, sort_keys=True))
     return 0

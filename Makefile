@@ -1,4 +1,4 @@
-.PHONY: demo deploy predict simulate monitor promote rollback health plan-rollout policy-audit trace-report chaos-drill minikube-up kubernetes-plan test clean
+.PHONY: demo deploy predict simulate monitor promote rollback health plan-rollout policy-audit trace-report chaos-drill optimize-resources minikube-up kubernetes-plan test clean
 
 demo:
 	PYTHONPATH=src python3 -m kserve_model_platform demo --output .local
@@ -27,6 +27,9 @@ trace-report:
 chaos-drill:
 	PYTHONPATH=src python3 -m kserve_model_platform chaos-drill --output .local
 
+optimize-resources:
+	PYTHONPATH=src python3 -m kserve_model_platform optimize-resources --output .local
+
 promote:
 	PYTHONPATH=src python3 -m kserve_model_platform promote --output .local
 
@@ -43,6 +46,7 @@ minikube-up:
 	@echo "  kubectl apply -f kserve/production-hardening.yaml"
 	@echo "  kubectl apply -f kserve/inferenceservice-canary.yaml"
 	@echo "  kubectl apply -f kubernetes/serving-release-workloads.yaml"
+	@echo "  kubectl apply -f kubernetes/resource-optimization.yaml"
 	@echo "  kubectl apply -f kubernetes/chaos-experiments.yaml"
 	@echo "  kubectl apply -f monitoring/prometheus/prometheus.yml"
 

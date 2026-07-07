@@ -1,0 +1,98 @@
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: credit-risk-predictor-vpa-recommender
+  namespace: mlops-serving
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: credit-risk-predictor
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: "*"
+        controlledResources: ["cpu", "memory"]
+        minAllowed:
+          cpu: 300m
+          memory: 512Mi
+        maxAllowed:
+          cpu: "2"
+          memory: 2Gi
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: credit-risk-router-hpa
+  namespace: mlops-serving
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: credit-risk-router
+  minReplicas: 2
+  maxReplicas: 12
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: AverageValue
+          averageValue: 384Mi
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 15
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 20
+          periodSeconds: 120
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airflow-capacity-pools
+  namespace: mlops-serving
+data:
+  pools.json: |
+    [
+      {"name": "canary_analysis", "slots": 3, "description": "Bound canary analysis jobs"},
+      {"name": "serving_smoke_tests", "slots": 5, "description": "Allow quick smoke tests without overloading gateways"},
+      {"name": "rollback_checks", "slots": 2, "description": "Reserve capacity for emergency rollback verification"}
+    ]
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: serving-resource-optimization-alerts
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: serving.resource.optimization
+      rules:
+        - alert: ServingCpuThrottlingHigh
+          expr: rate(container_cpu_cfs_throttled_periods_total{namespace="mlops-serving"}[5m]) > 0.15
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Predictor CPU throttling is high; review CPU limits before advancing canary."
+        - alert: CanaryAnalysisQueueSaturation
+          expr: airflow_pool_queued_slots{pool="canary_analysis"} > 0
+          for: 15m
+          labels:
+            severity: info
+          annotations:
+            summary: "Canary analysis pool is saturated; hold traffic increase until backlog clears."

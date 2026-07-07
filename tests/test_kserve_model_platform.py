@@ -11,6 +11,7 @@ from kserve_model_platform.models import generate_requests, validate_payload
 from kserve_model_platform.monitoring import evaluate_canary
 from kserve_model_platform.policy_audit import audit_platform_policy
 from kserve_model_platform.registry import aliases
+from kserve_model_platform.resource_optimizer import build_resource_optimization_report
 from kserve_model_platform.rollout_control import build_rollout_plan, evaluate_rollout, wilson_error_upper_bound
 from kserve_model_platform.serving import deploy, predict, route_alias
 from kserve_model_platform.traceability import build_trace_report
@@ -107,6 +108,20 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertEqual(report["scenario_count"], 3)
             self.assertTrue(any(scenario["fault"] == "PodChaos" for scenario in report["scenarios"]))
             self.assertTrue((Path(tmp) / "reports" / "chaos_drill_report.json").exists())
+
+    def test_resource_optimization_and_autoscaling_assets_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        optimization = (repo / "kubernetes" / "resource-optimization.yaml").read_text(encoding="utf-8")
+
+        for expected in ["VerticalPodAutoscaler", "HorizontalPodAutoscaler", "PrometheusRule", "airflow-capacity-pools", "stabilizationWindowSeconds: 300"]:
+            self.assertIn(expected, optimization)
+        with tempfile.TemporaryDirectory() as tmp:
+            report = build_resource_optimization_report(tmp)
+
+            self.assertEqual(report["summary"]["workload_count"], 3)
+            self.assertIn("asymmetric HPA", " ".join(report["guardrails"]))
+            self.assertTrue(any("prewarm_replicas" in item["actions"] for item in report["recommendations"]))
+            self.assertTrue((Path(tmp) / "reports" / "resource_optimization.json").exists())
 
     def test_rollout_control_uses_confidence_bound_and_next_step(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
