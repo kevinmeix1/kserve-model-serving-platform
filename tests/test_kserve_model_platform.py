@@ -18,6 +18,7 @@ from kserve_model_platform.registry import aliases
 from kserve_model_platform.resource_optimizer import build_resource_optimization_report
 from kserve_model_platform.rollout_control import build_rollout_plan, evaluate_rollout, wilson_error_upper_bound
 from kserve_model_platform.serving import deploy, predict, route_alias
+from kserve_model_platform.slo import build_slo_report
 from kserve_model_platform.traceability import build_trace_report
 
 
@@ -187,6 +188,22 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertEqual(approval["decision"], "approved_for_promotion")
             self.assertTrue(any(item["exists"] and len(item["sha256"]) == 64 for item in manifest["artifact_hashes"]))
             self.assertTrue((root / "reports" / "governance_evidence_bundle.json").exists())
+
+    def test_slo_error_budget_report_and_alert_assets_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        alerts = (repo / "kubernetes" / "slo-alerts.yaml").read_text(encoding="utf-8")
+
+        for expected in ["PrometheusRule", "SLOBurnRateHigh", "multiwindow", "error-budget-freeze"]:
+            self.assertIn(expected, alerts)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = demo(root)
+            report = build_slo_report(root)
+
+            self.assertEqual(result["slo_error_budget"]["recommended_action"], "allow_progressive_rollout")
+            self.assertEqual(report["slos"][0]["name"], "serving_availability")
+            self.assertTrue(any(item["name"] == "shadow_score_parity" for item in report["slos"]))
+            self.assertTrue((root / "reports" / "slo_error_budget.json").exists())
 
     def test_rollout_control_uses_confidence_bound_and_next_step(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

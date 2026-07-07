@@ -95,6 +95,8 @@ For backup schedules, restore order, and RPO/RTO evidence, see [disaster recover
 
 For serving model cards, request data cards, canary approval records, risk controls, and reproducibility hashes, see [governance evidence](docs/governance-evidence.md).
 
+For multi-window burn alerts, canary-freeze policy, and error-budget reports, see [SLO and error budget automation](docs/slo-error-budget.md).
+
 ## Canary Gates
 
 The challenger is recommended for promotion only when:

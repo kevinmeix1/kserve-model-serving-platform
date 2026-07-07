@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: credit-risk-serving-error-budget-policy
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: slo-error-budget
+data:
+  policy: |
+    multiwindow burn alerts:
+      fast_page: 14.4 burn over 5m and 1h
+      slow_page: 6.0 burn over 30m and 6h
+      ticket: 1.0 burn over 6h and 3d
+    release freeze:
+      rollback or hold canary when serving or shadow-parity SLOs breach
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: credit-risk-serving-slo-burn-rate
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: slo-error-budget
+spec:
+  groups:
+    - name: credit-risk-serving.slo.multiwindow
+      rules:
+        - alert: SLOBurnRateHigh
+          expr: |
+            (
+              sum(rate(credit_risk_prediction_errors_total[5m])) / sum(rate(credit_risk_prediction_requests_total[5m])) > (14.4 * 0.005)
+            )
+            and
+            (
+              sum(rate(credit_risk_prediction_errors_total[1h])) / sum(rate(credit_risk_prediction_requests_total[1h])) > (14.4 * 0.005)
+            )
+          for: 2m
+          labels:
+            severity: page
+            slo: serving_availability
+          annotations:
+            summary: "Credit-risk serving is burning error budget too quickly"
+            runbook: "docs/slo-error-budget.md"
+        - alert: SLOShadowParityBreach
+          expr: avg_over_time(credit_risk_shadow_score_delta[30m]) > 0.12
+          for: 15m
+          labels:
+            severity: page
+            slo: shadow_score_parity
+          annotations:
+            summary: "Challenger shadow score delta exceeded promotion policy"
+            runbook: "docs/slo-error-budget.md"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: credit-risk-serving-error-budget-freeze-sync
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: slo-error-budget
+spec:
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: sync
+              image: ghcr.io/kevinmeix1/kserve-model-serving-platform@sha256:replace-with-built-image-digest
+              command: ["python", "-m", "kserve_model_platform", "slo-report", "--output", "/workspace"]
+              env:
+                - name: CANARY_FREEZE_VARIABLE
+                  value: "kserve_canary_freeze"
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true

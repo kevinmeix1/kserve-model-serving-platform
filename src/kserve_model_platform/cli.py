@@ -20,6 +20,7 @@ from .resource_optimizer import build_resource_optimization_report
 from .rollout_control import build_rollout_plan
 from .serving import deploy as deploy_kserve
 from .serving import health, predict
+from .slo import build_slo_report
 from .traceability import build_trace_report
 
 
@@ -94,6 +95,13 @@ def governance(output: str | Path) -> dict:
     return build_governance_bundle(root)
 
 
+def slo_report(output: str | Path) -> dict:
+    root = root_path(output)
+    if not (root / "reports" / "canary_decision.json").exists():
+        monitor(root)
+    return build_slo_report(root)
+
+
 def promote(output: str | Path) -> dict:
     root = root_path(output)
     decision_path = root / "reports" / "canary_decision.json"
@@ -127,6 +135,7 @@ def demo(output: str | Path) -> dict:
     gitops_plan = build_gitops_plan(root)
     disaster_recovery = build_disaster_recovery_plan(root)
     governance_bundle = build_governance_bundle(root)
+    slo_error_budget = build_slo_report(root)
     idempotent = predict(root, generate_requests(1)[0])
     return {
         "deployment": deployment,
@@ -141,6 +150,7 @@ def demo(output: str | Path) -> dict:
         "gitops_plan": gitops_plan,
         "disaster_recovery": disaster_recovery,
         "governance_bundle": governance_bundle,
+        "slo_error_budget": slo_error_budget,
         "dashboard": monitoring["dashboard"],
         "idempotent_replay": idempotent.get("idempotent_replay", False),
     }
@@ -167,6 +177,7 @@ def main(argv: list[str] | None = None) -> int:
         "gitops-plan",
         "dr-plan",
         "governance-bundle",
+        "slo-report",
     ]:
         cmd = sub.add_parser(command)
         cmd.add_argument("--output", default=".local")
@@ -207,4 +218,6 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_disaster_recovery_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "governance-bundle":
         print(json.dumps(governance(args.output), indent=2, sort_keys=True))
+    elif args.command == "slo-report":
+        print(json.dumps(slo_report(args.output), indent=2, sort_keys=True))
     return 0
