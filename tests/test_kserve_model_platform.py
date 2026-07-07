@@ -9,6 +9,7 @@ from kserve_model_platform.cli import demo, monitor, promote, rollback, simulate
 from kserve_model_platform.io import read_json, read_jsonl, write_json
 from kserve_model_platform.models import generate_requests, validate_payload
 from kserve_model_platform.monitoring import evaluate_canary
+from kserve_model_platform.network_security import build_network_security_report
 from kserve_model_platform.policy_audit import audit_platform_policy
 from kserve_model_platform.registry import aliases
 from kserve_model_platform.resource_optimizer import build_resource_optimization_report
@@ -122,6 +123,20 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertIn("asymmetric HPA", " ".join(report["guardrails"]))
             self.assertTrue(any("prewarm_replicas" in item["actions"] for item in report["recommendations"]))
             self.assertTrue((Path(tmp) / "reports" / "resource_optimization.json").exists())
+
+    def test_network_security_topology_and_manifests_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        network_security = (repo / "kubernetes" / "network-security.yaml").read_text(encoding="utf-8")
+
+        for expected in ["kind: NetworkPolicy", "default-deny-all", "PeerAuthentication", "mode: STRICT", "AuthorizationPolicy"]:
+            self.assertIn(expected, network_security)
+        with tempfile.TemporaryDirectory() as tmp:
+            report = build_network_security_report(tmp)
+
+            self.assertEqual(report["mtls_mode"], "STRICT")
+            self.assertEqual(report["allowed_flow_count"], 3)
+            self.assertTrue(any(flow["destination"] == "challenger-predictor" for flow in report["allowed_flows"]))
+            self.assertTrue((Path(tmp) / "reports" / "network_security.json").exists())
 
     def test_rollout_control_uses_confidence_bound_and_next_step(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,0 +1,102 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: mlops-serving
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: mlops-serving
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-to-predictors
+  namespace: mlops-serving
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: predictor
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: credit-risk-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-rollout-controller-to-kserve-api
+  namespace: mlops-serving
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: rollout-controller
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kserve-api
+      ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: serving-strict-mtls
+  namespace: mlops-serving
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-gateway-serving-traffic
+  namespace: mlops-serving
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: predictor
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/mlops-serving/sa/credit-risk-gateway
+      to:
+        - operation:
+            methods: ["POST"]
+            ports: ["8080"]

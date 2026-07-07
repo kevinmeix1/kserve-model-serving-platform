@@ -87,6 +87,8 @@ For controlled failure injection and recovery objectives, see [resilience and ch
 
 For workload right-sizing, HPA/VPA guardrails, and Airflow pool sizing, see [resource optimization](docs/resource-optimization.md).
 
+For runtime network boundaries, mTLS, and allow-listed service flows, see [network security](docs/network-security.md).
+
 ## Canary Gates
 
 The challenger is recommended for promotion only when:
