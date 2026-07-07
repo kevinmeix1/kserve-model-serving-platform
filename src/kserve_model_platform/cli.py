@@ -10,6 +10,7 @@ from .models import generate_requests
 from .monitoring import build_report, evaluate_canary
 from .registry import aliases as registry_aliases
 from .registry import promote_challenger, rollback as rollback_registry, seed_registry
+from .rollout_control import build_rollout_plan
 from .serving import deploy as deploy_kserve
 from .serving import health, predict
 
@@ -66,14 +67,16 @@ def monitor(output: str | Path) -> dict:
     decision = evaluate_canary(report)
     write_json(root / "reports" / "canary_decision.json", decision)
     deployment = read_json(root / "deployments" / "kserve_state.json")
+    rollout_plan = build_rollout_plan(root)
     dashboard = render_dashboard(
         root / "reports" / "kserve_serving_dashboard.html",
         deployment=deployment,
         report=report,
         decision=decision,
         aliases=registry_aliases(root),
+        rollout_plan=rollout_plan,
     )
-    return {"report": report, "decision": decision, "dashboard": str(dashboard)}
+    return {"report": report, "decision": decision, "rollout_plan": rollout_plan, "dashboard": str(dashboard)}
 
 
 def promote(output: str | Path) -> dict:
@@ -106,6 +109,7 @@ def demo(output: str | Path) -> dict:
         "deployment": deployment,
         "simulation": simulation,
         "canary": monitoring["decision"],
+        "rollout_plan": monitoring["rollout_plan"],
         "dashboard": monitoring["dashboard"],
         "idempotent_replay": idempotent.get("idempotent_replay", False),
     }
@@ -114,7 +118,7 @@ def demo(output: str | Path) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="KServe model serving platform")
     sub = parser.add_subparsers(dest="command", required=True)
-    for command in ["demo", "deploy", "predict", "simulate", "monitor", "promote", "rollback", "health"]:
+    for command in ["demo", "deploy", "predict", "simulate", "monitor", "promote", "rollback", "health", "plan-rollout"]:
         cmd = sub.add_parser(command)
         cmd.add_argument("--output", default=".local")
         if command in {"deploy", "simulate"}:
@@ -136,4 +140,6 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(rollback(args.output), indent=2, sort_keys=True))
     elif args.command == "health":
         print(json.dumps(health(args.output), indent=2, sort_keys=True))
+    elif args.command == "plan-rollout":
+        print(json.dumps(build_rollout_plan(args.output), indent=2, sort_keys=True))
     return 0

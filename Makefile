@@ -1,4 +1,4 @@
-.PHONY: demo deploy predict simulate monitor promote rollback health minikube-up kubernetes-plan test clean
+.PHONY: demo deploy predict simulate monitor promote rollback health plan-rollout minikube-up kubernetes-plan test clean
 
 demo:
 	PYTHONPATH=src python3 -m kserve_model_platform demo --output .local
@@ -14,6 +14,9 @@ simulate:
 
 monitor:
 	PYTHONPATH=src python3 -m kserve_model_platform monitor --output .local
+
+plan-rollout:
+	PYTHONPATH=src python3 -m kserve_model_platform plan-rollout --output .local
 
 promote:
 	PYTHONPATH=src python3 -m kserve_model_platform promote --output .local

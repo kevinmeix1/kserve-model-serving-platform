@@ -36,7 +36,9 @@ def rows(items: list[dict], columns: list[str]) -> str:
     return "\n".join(output)
 
 
-def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict, decision: dict, aliases: dict) -> Path:
+def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict, decision: dict, aliases: dict, rollout_plan: dict | None = None) -> Path:
+    rollout_plan = rollout_plan or {}
+    rollout_analysis = rollout_plan.get("analysis", {})
     check_rows = [
         {
             "check": LABELS.get(check["name"], check["name"]),
@@ -126,6 +128,15 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
             </div>
           </div>
           <div>
+            <div class="panel">
+              <h2>Rollout Control Plane</h2>
+              <div class="summary">
+                <div><span>Recommended action</span><strong>{esc(rollout_plan.get('recommended_action', 'not planned'))}</strong></div>
+                <div><span>Next canary percent</span><strong>{esc(rollout_plan.get('next_percent', 'n/a'))}</strong></div>
+                <div><span>Error upper bound</span><strong>{esc(rollout_analysis.get('error_upper_bound', 'n/a'))}</strong></div>
+                <div><span>Gateway weights</span><strong>{esc(rollout_plan.get('gateway_weights', {}))}</strong></div>
+              </div>
+            </div>
             <div class="panel">
               <h2>Traffic And Errors</h2>
               <div class="summary">

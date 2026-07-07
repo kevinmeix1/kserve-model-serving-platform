@@ -77,6 +77,8 @@ For the latest progressive rollout orchestration pass, see [advanced orchestrati
 
 For the Kubernetes/Airflow robustness layer, see [Kubernetes and Airflow robustness](docs/kubernetes-airflow-robustness.md).
 
+For the operator-facing rollout planner, see [advanced rollout control plane](docs/control-plane-depth.md).
+
 ## Canary Gates
 
 The challenger is recommended for promotion only when:

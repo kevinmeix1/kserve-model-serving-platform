@@ -5,10 +5,11 @@ import unittest
 from pathlib import Path
 
 from kserve_model_platform.cli import demo, monitor, promote, rollback, simulate
-from kserve_model_platform.io import read_json, read_jsonl
+from kserve_model_platform.io import read_json, read_jsonl, write_json
 from kserve_model_platform.models import generate_requests, validate_payload
 from kserve_model_platform.monitoring import evaluate_canary
 from kserve_model_platform.registry import aliases
+from kserve_model_platform.rollout_control import build_rollout_plan, evaluate_rollout, wilson_error_upper_bound
 from kserve_model_platform.serving import deploy, predict, route_alias
 
 
@@ -55,6 +56,39 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertIn(expected, admission)
         for expected in ["HTTPRoute", "credit-risk-weighted-route", "weight: 95", "weight: 5", "credit-risk-emergency-rollback-route"]:
             self.assertIn(expected, traffic)
+
+    def test_event_driven_autoscaling_assets_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        autoscaling = (repo / "kubernetes" / "event-driven-autoscaling.yaml").read_text(encoding="utf-8")
+
+        for expected in ["ScaledObject", "prometheus", "fallback", "horizontalPodAutoscalerConfig", "activationThreshold"]:
+            self.assertIn(expected, autoscaling)
+
+    def test_rollout_control_uses_confidence_bound_and_next_step(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_json(
+                root / "reports" / "serving_observability.json",
+                {
+                    "request_count": 500,
+                    "error_count": 0,
+                    "latency_ms": {"p95": 12.0},
+                    "shadow": {"mean_abs_delta": 0.03},
+                    "route_counts": {"champion": 450, "challenger": 50},
+                },
+            )
+            write_json(root / "deployments" / "kserve_state.json", {"service_name": "credit-risk-router", "traffic": {"challenger": 10}})
+
+            plan = build_rollout_plan(root)
+            failed = evaluate_rollout(
+                {"request_count": 20, "error_count": 4, "latency_ms": {"p95": 80.0}, "shadow": {"mean_abs_delta": 0.2}, "route_counts": {"challenger": 2}},
+                10,
+            )
+
+            self.assertLess(wilson_error_upper_bound(0, 500), 0.02)
+            self.assertEqual(plan["recommended_action"], "advance")
+            self.assertEqual(plan["next_percent"], 25)
+            self.assertEqual(failed["action"], "rollback")
 
     def test_demo_writes_dashboard_and_passes_canary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
