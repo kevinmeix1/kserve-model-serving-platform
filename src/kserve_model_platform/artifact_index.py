@@ -24,6 +24,9 @@ def render_artifact_index(root: str | Path, *, title: str, description: str, das
         ("Cloud Migration Plan", "cloud_migration_plan.json", "KServe deployment migration notes for managed Kubernetes and cloud model platforms."),
         ("Disaster Recovery Plan", "disaster_recovery_plan.json", "Backup, restore, registry, and serving failover plan for production inference."),
         ("Accelerator Plan", "accelerator_capacity_plan.json", "GPU, DRA, Kueue, MIG, and time-slicing plan for accelerator-aware serving."),
+        ("Performance Budget", "performance_budget.json", "p95/p99 latency, error-rate, canary-volume, and shadow-delta gates with rollback actions."),
+        ("Resource Optimization", "resource_optimization.json", "Rightsizing, HPA, VPA, KEDA, and prewarm recommendations for serving workloads."),
+        ("Network Security", "network_security.json", "mTLS, network policy, and router-to-predictor access topology for model serving."),
         ("Orchestration Scorecard", "orchestration_scorecard.json", "Automated scan of advanced Airflow, Kubernetes, lineage, and security controls."),
     ]
     card_html = "\n".join(

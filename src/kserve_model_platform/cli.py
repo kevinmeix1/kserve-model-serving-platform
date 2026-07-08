@@ -18,6 +18,7 @@ from .monitoring import build_report, evaluate_canary
 from .network_security import build_network_security_report
 from .orchestration_scorecard import build_orchestration_scorecard
 from .policy_audit import audit_platform_policy
+from .performance_budget import build_performance_budget_report
 from .registry import aliases as registry_aliases
 from .registry import promote_challenger, rollback as rollback_registry, seed_registry
 from .resource_optimizer import build_resource_optimization_report
@@ -147,6 +148,7 @@ def demo(output: str | Path) -> dict:
         project="KServe Model Serving Platform",
         primary_workload="online inference, shadow scoring, and canary analysis",
     )
+    performance_budget = build_performance_budget_report(root)
     artifact_index = render_artifact_index(
         root,
         title="KServe Model Serving Platform",
@@ -178,6 +180,7 @@ def demo(output: str | Path) -> dict:
         "slo_error_budget": slo_error_budget,
         "cloud_migration": cloud_migration,
         "accelerator_capacity": accelerator_capacity,
+        "performance_budget": performance_budget,
         "artifact_index": str(artifact_index),
         "orchestration_scorecard": orchestration_scorecard,
         "supply_chain": supply_chain,
@@ -212,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
         "supply-chain",
         "orchestration-scorecard",
         "accelerator-plan",
+        "performance-budget",
     ]:
         cmd = sub.add_parser(command)
         cmd.add_argument("--output", default=".local")
@@ -262,4 +266,6 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_orchestration_scorecard(args.output, project="KServe Model Serving Platform"), indent=2, sort_keys=True))
     elif args.command == "accelerator-plan":
         print(json.dumps(build_accelerator_capacity_plan(args.output, project="KServe Model Serving Platform", primary_workload="online inference, shadow scoring, and canary analysis"), indent=2, sort_keys=True))
+    elif args.command == "performance-budget":
+        print(json.dumps(build_performance_budget_report(args.output), indent=2, sort_keys=True))
     return 0

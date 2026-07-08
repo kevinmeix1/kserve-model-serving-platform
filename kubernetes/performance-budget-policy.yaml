@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: credit-risk-performance-budget
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: credit-risk
+    app.kubernetes.io/component: performance-budget
+data:
+  inference_p95_ms: "35"
+  inference_p99_ms: "90"
+  api_error_rate: "0.01"
+  shadow_score_delta: "0.12"
+  request_volume_for_canary: "100"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: credit-risk-performance-budget
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: credit-risk
+    app.kubernetes.io/component: performance-budget
+spec:
+  groups:
+    - name: credit-risk.performance-budget
+      rules:
+        - alert: CreditRiskServingP95BudgetExceeded
+          expr: |
+            histogram_quantile(0.95, sum(rate(kserve_request_duration_seconds_bucket{service="credit-risk-router"}[5m])) by (le)) * 1000 > 35
+          for: 10m
+          labels:
+            severity: warning
+            owner: serving
+          annotations:
+            summary: Credit-risk p95 serving latency is over the canary budget.
+            runbook_url: docs/performance-budgets.md
+        - alert: CreditRiskCanaryErrorBudgetExceeded
+          expr: |
+            sum(rate(kserve_request_total{service="credit-risk-router", status=~"5.."}[5m])) / sum(rate(kserve_request_total{service="credit-risk-router"}[5m])) > 0.01
+          for: 5m
+          labels:
+            severity: critical
+            owner: release
+          annotations:
+            summary: Credit-risk canary error rate is above the rollback threshold.
+            runbook_url: docs/performance-budgets.md

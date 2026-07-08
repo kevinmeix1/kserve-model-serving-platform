@@ -44,6 +44,7 @@ jobs:
             echo "- Supply-chain evidence: .local/reports/supply_chain_evidence.json"
             echo "- Orchestration scorecard: .local/reports/orchestration_scorecard.json"
             echo "- Accelerator capacity plan: .local/reports/accelerator_capacity_plan.json"
+            echo "- Performance budget: .local/reports/performance_budget.json"
             echo ""
             echo "Generated reports:"
             find .local/reports -maxdepth 1 -type f | sort | sed 's/^/- /'
