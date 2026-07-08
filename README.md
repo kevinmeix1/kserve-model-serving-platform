@@ -109,6 +109,8 @@ For GPU ResourceFlavors, Dynamic Resource Allocation notes, MIG/time-slicing tra
 
 For p95/p99 serving latency, canary-volume, shadow-delta, and rollback regression gates, see [performance budgets](docs/performance-budgets.md).
 
+For Kueue quota pressure, serving priority, rollback preemption, GPU use, and Airflow pool examples, see [queue capacity simulation](docs/queue-capacity-simulation.md).
+
 ## Canary Gates
 
 The challenger is recommended for promotion only when:

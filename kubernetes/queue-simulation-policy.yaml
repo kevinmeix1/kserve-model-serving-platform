@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: credit-risk-serving-queue-simulation
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: credit-risk
+    app.kubernetes.io/component: queue-simulation
+data:
+  nominal_cpu: "12"
+  nominal_memory_gib: "48"
+  nominal_gpu: "1"
+  airflow_pool_slots: "6"
+  critical_priority_floor: "900"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: serving-emergency-rollback
+value: 100000
+globalDefault: false
+description: "Emergency rollback may preempt low-priority serving experiments and batch replay work."
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: credit-risk-serving-queue-pressure
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: credit-risk.queue-simulation
+      rules:
+        - alert: CreditRiskServingQueuePressureHigh
+          expr: |
+            sum(kueue_pending_workloads{cluster_queue="credit-risk-serving-cluster-queue"}) > 2
+          for: 10m
+          labels:
+            severity: warning
+            owner: serving
+          annotations:
+            summary: Serving queue has sustained pending canary or rollback work.
+            runbook_url: docs/queue-capacity-simulation.md

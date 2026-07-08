@@ -25,8 +25,11 @@ def render_artifact_index(root: str | Path, *, title: str, description: str, das
         ("Disaster Recovery Plan", "disaster_recovery_plan.json", "Backup, restore, registry, and serving failover plan for production inference."),
         ("Accelerator Plan", "accelerator_capacity_plan.json", "GPU, DRA, Kueue, MIG, and time-slicing plan for accelerator-aware serving."),
         ("Performance Budget", "performance_budget.json", "p95/p99 latency, error-rate, canary-volume, and shadow-delta gates with rollback actions."),
+        ("Queue Simulation", "queue_simulation.json", "Kueue quota, serving priority, GPU, Airflow pool, and rollback preemption simulation."),
         ("Resource Optimization", "resource_optimization.json", "Rightsizing, HPA, VPA, KEDA, and prewarm recommendations for serving workloads."),
         ("Network Security", "network_security.json", "mTLS, network policy, and router-to-predictor access topology for model serving."),
+        ("Chaos Drill", "chaos_drill_report.json", "Serving failure-injection scenarios with blast radius and rollback controls."),
+        ("GitOps Plan", "gitops_plan.json", "Promotion waves, route gates, rollback commands, and GitOps-controlled serving rollout."),
         ("Orchestration Scorecard", "orchestration_scorecard.json", "Automated scan of advanced Airflow, Kubernetes, lineage, and security controls."),
     ]
     card_html = "\n".join(
