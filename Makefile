@@ -1,4 +1,4 @@
-.PHONY: demo deploy predict simulate monitor promote rollback health plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan device-plan resource-health-status topology-plan kuberay-plan inference-gateway-plan semantic-telemetry-plan deadline-alerts-plan cost-observability elastic-workload-plan indexed-job-resilience provisioning-admission multikueue-dispatch model-cache dag-bundle-plan event-driven-assets pod-resource-envelopes cohort-fair-sharing flavor-fungibility pending-workload-visibility tenancy-report identity-report performance-budget queue-simulation release-admission ci-verify minikube-up kubernetes-plan test clean
+.PHONY: demo deploy predict simulate monitor promote rollback health plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan device-plan resource-health-status advanced-device-sharing topology-plan kuberay-plan inference-gateway-plan semantic-telemetry-plan deadline-alerts-plan cost-observability elastic-workload-plan indexed-job-resilience provisioning-admission multikueue-dispatch model-cache dag-bundle-plan event-driven-assets pod-resource-envelopes cohort-fair-sharing flavor-fungibility pending-workload-visibility tenancy-report identity-report performance-budget queue-simulation release-admission ci-verify minikube-up kubernetes-plan test clean
 
 demo:
 	PYTHONPATH=src python3 -m kserve_model_platform demo --output .local
@@ -62,6 +62,9 @@ device-plan:
 
 resource-health-status:
 	PYTHONPATH=src python3 -m kserve_model_platform resource-health-status --output .local
+
+advanced-device-sharing:
+	PYTHONPATH=src python3 -m kserve_model_platform advanced-device-sharing --output .local
 
 topology-plan:
 	PYTHONPATH=src python3 -m kserve_model_platform topology-plan --output .local
@@ -141,6 +144,7 @@ ci-verify:
 	test -f .local/reports/accelerator_capacity_plan.json
 	test -f .local/reports/device_allocation_plan.json
 	test -f .local/reports/resource_health_status_plan.json
+	test -f .local/reports/advanced_device_sharing_plan.json
 	test -f .local/reports/topology_placement_plan.json
 	test -f .local/reports/kuberay_capacity_plan.json
 	test -f .local/reports/inference_gateway_plan.json
@@ -172,6 +176,7 @@ ci-verify:
 	python3 -m json.tool .local/reports/accelerator_capacity_plan.json >/dev/null
 	python3 -m json.tool .local/reports/device_allocation_plan.json >/dev/null
 	python3 -m json.tool .local/reports/resource_health_status_plan.json >/dev/null
+	python3 -m json.tool .local/reports/advanced_device_sharing_plan.json >/dev/null
 	python3 -m json.tool .local/reports/topology_placement_plan.json >/dev/null
 	python3 -m json.tool .local/reports/kuberay_capacity_plan.json >/dev/null
 	python3 -m json.tool .local/reports/inference_gateway_plan.json >/dev/null
@@ -223,6 +228,7 @@ minikube-up:
 	@echo "  kubectl apply -f kubernetes/accelerator-scheduling.yaml"
 	@echo "  kubectl apply -f kubernetes/dynamic-resource-allocation.yaml"
 	@echo "  kubectl apply -f kubernetes/dra-resource-health-status.yaml"
+	@echo "  kubectl apply -f kubernetes/dra-advanced-device-sharing.yaml"
 	@echo "  kubectl apply -f kubernetes/topology-aware-scheduling.yaml"
 	@echo "  kubectl apply -f kubernetes/kuberay-kueue-workloads.yaml"
 	@echo "  kubectl apply -f kubernetes/kueue-elastic-workloads.yaml"

@@ -1,0 +1,102 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kserve-dra-advanced-device-sharing-examples
+  namespace: mlops-serving
+data:
+  prioritized-list-resourceclaimtemplate.yaml: |
+    apiVersion: resource.k8s.io/v1
+    kind: ResourceClaimTemplate
+    metadata:
+      name: credit-risk-challenger-prioritized-accelerator
+      namespace: mlops-serving
+    spec:
+      spec:
+        devices:
+          requests:
+            - name: challenger-accelerator
+              prioritizedList:
+                - deviceClassName: gpu-l4-shared
+                  count: 1
+                - deviceClassName: gpu-a100-mig
+                  count: 1
+                - deviceClassName: cpu-shadow-only
+                  count: 1
+  partitionable-resource-slice.yaml: |
+    apiVersion: resource.k8s.io/v1
+    kind: ResourceSlice
+    metadata:
+      name: a100-partitionable-shadow-analysis
+    spec:
+      driver: gpu.resource.kubernetes.io
+      pool:
+        name: serving-shadow-a100-pool
+        generation: 1
+        resourceSliceCount: 1
+      devices:
+        - name: a100-shadow-parent-0
+          partitionable: true
+          attributes:
+            model:
+              string: A100
+            partitioning:
+              string: mig
+  consumable-capacity-request.yaml: |
+    apiVersion: resource.k8s.io/v1
+    kind: ResourceClaimTemplate
+    metadata:
+      name: shadow-analysis-consumable-gpu
+      namespace: mlops-serving-analysis
+    spec:
+      spec:
+        devices:
+          requests:
+            - name: shadow-vgpu-memory
+              deviceClassName: partitionable-a100
+              capacity:
+                requests:
+                  memory: 6Gi
+              constraints:
+                - distinctAttribute: device-id
+  binding-conditions-resource-slice.yaml: |
+    apiVersion: resource.k8s.io/v1
+    kind: ResourceSlice
+    metadata:
+      name: large-model-profile-fabric-a100
+    spec:
+      driver: gpu.resource.kubernetes.io
+      pool:
+        name: serving-profile-a100-pool
+        generation: 1
+        resourceSliceCount: 1
+      devices:
+        - name: fabric-a100-profile-0
+          bindsToNode: true
+          bindingConditions:
+            - gpu.resource.kubernetes.io/is-prepared
+          bindingFailureConditions:
+            - gpu.resource.kubernetes.io/preparing-failed
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kserve-dra-advanced-device-sharing
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: kserve.dra.advanced.device.sharing
+      rules:
+        - alert: KServeDRADeviceBindingWaitHigh
+          expr: histogram_quantile(0.95, sum(rate(kube_scheduler_plugin_duration_seconds_bucket{plugin="DynamicResources",extension_point="PreBind"}[5m])) by (le)) > 30
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "DRA device binding conditions are slowing KServe profiling"
+        - alert: KServeDRAConsumableCapacityExhausted
+          expr: sum(kube_resourceclaim_status_allocation_capacity{namespace=~"mlops-serving|mlops-serving-analysis",resource=~"memory|bandwidth"}) by (namespace, resource) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "DRA consumable capacity is saturated for KServe canary analysis"

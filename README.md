@@ -115,6 +115,8 @@ For DRA `DeviceClass`, `ResourceClaimTemplate`, Kueue admission coupling, and ca
 
 For Kubernetes v1.36 DRA `ResourceHealthStatus`, `ResourceClaim.status.devices`, and device quarantine during KServe canaries, see [DRA resource health status](docs/dra-resource-health-status.md).
 
+For DRA prioritized alternatives, partitionable devices, consumable capacity, and binding-condition readiness for serving canaries, see [DRA advanced device sharing](docs/dra-advanced-device-sharing.md).
+
 For Kueue topology-aware serving analysis, LeaderWorkerSet co-location, and zone-spread router placement, see [topology-aware scheduling](docs/topology-aware-scheduling.md).
 
 For RayService transforms, Kueue-admitted canary analysis, elastic worker bounds, and explainer fallbacks, see [KubeRay and Kueue](docs/kuberay-kueue.md).
