@@ -62,6 +62,7 @@ jobs:
             echo "- Model cache: .local/reports/model_cache_plan.json"
             echo "- DAG bundle versioning: .local/reports/dag_bundle_versioning_plan.json"
             echo "- Asset partitioning: .local/reports/asset_partitioning_plan.json"
+            echo "- Multi-team readiness: .local/reports/multi_team_readiness_plan.json"
             echo "- Event-driven assets: .local/reports/event_driven_assets_plan.json"
             echo "- Pod resource envelopes: .local/reports/pod_resource_envelope_plan.json"
             echo "- Cohort fair sharing: .local/reports/cohort_fair_sharing_plan.json"

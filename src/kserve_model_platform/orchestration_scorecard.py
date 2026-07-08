@@ -13,7 +13,7 @@ def _read_all(repo_root: Path) -> tuple[str, list[Path]]:
         if not base.exists():
             continue
         for path in sorted(base.rglob("*")):
-            if path.is_file() and path.suffix in {".py", ".yaml", ".yml", ".md"}:
+            if path.is_file() and path.suffix in {".ini", ".py", ".yaml", ".yml", ".md"}:
                 files.append(path)
                 chunks.append(path.read_text(encoding="utf-8", errors="ignore"))
     return "\n".join(chunks), files
@@ -65,6 +65,7 @@ def build_orchestration_scorecard(
         ("kserve_model_cache", _present(content, "model_cache_plan.json", "LocalModelNamespaceCache", "LocalModelNodeGroup") and _present(content, "oci://", "ModelDownloaded"), "KServe LocalModel cache and modelcar OCI storage gate canary and rollback cold-start risk"),
         ("airflow_dag_bundle_versioning", _present(content, "dag_bundle_versioning_plan.json", "GitDagBundle", "dag_bundle_config_list") and _present(content, "rerun_with_latest_version=False", "rerun_with_latest_version = False"), "Airflow 3 GitDagBundle versioning preserves rollout code across canary reruns, route replay, and incident recovery"),
         ("airflow_asset_partitioning", _present(content, "asset_partitioning_plan.json", "PartitionedAssetTimetable", "CronPartitionTimetable") and _present(content, "dag_run.partition_key", "StartOfHourMapper"), "Airflow 3.2 asset partitioning scopes KServe canary telemetry, route decisions, and rollback smoke to aligned partitions"),
+        ("airflow_multi_team_readiness", _present(content, "multi_team_readiness_plan.json", "team_name", "multi_team = True") and _present(content, "AssetAccessControl", "airflow triggerer --team-name"), "Airflow multi-team preview readiness isolates serving DAG bundles, pools, triggerers, secrets, executors, and asset events"),
         ("airflow_event_driven_assets", _present(content, "event_driven_assets_plan.json", "AssetWatcher", "BaseEventTrigger") and _present(content, "shared_stream_key", "AssetAlias"), "Airflow 3 event-driven assets trigger KServe rollouts from model, router, and route events"),
         ("pod_resource_envelopes", _present(content, "pod_resource_envelope_plan.json", "PodLevelResources", "schedulingGates") and _present(content, "scheduler_pending_pods", "PodSchedulingReadiness"), "Kubernetes pod-level resource envelopes and scheduling gates prevent canary, shadow, and rollback scheduler churn"),
         ("kueue_cohort_fair_sharing", _present(content, "cohort_fair_sharing_plan.json", "AdmissionFairSharing", "preemptionStrategies") and _present(content, "borrowingLimit", "lendingLimit", "fairSharing"), "Kueue Fair Sharing and Admission Fair Sharing protect online serving while canary analysis borrows idle quota"),
@@ -118,6 +119,7 @@ def build_orchestration_scorecard(
             "KServe LocalModelCache, LocalModelNodeGroup, and modelcar OCI storage for cold-start control",
             "Airflow 3 DAG Bundles and DAG versioning for reproducible KServe rollout reruns and scheduler-managed backfills",
             "Airflow 3.2 asset partitioning with PartitionedAssetTimetable for partition-aware KServe rollout backfills",
+            "Airflow multi-team preview mode for serving-owned DAG Bundles, team-scoped resources, triggerers, executors, and asset-event filtering",
             "Airflow 3 AssetWatchers, BaseEventTrigger compatibility, shared-stream polling, and conditional serving asset expressions",
             "GitHub artifact attestations, SLSA provenance, and Sigstore policy-controller for supply-chain integrity",
         ],
