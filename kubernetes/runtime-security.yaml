@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: serving-telemetry-reader
+  namespace: mlops-serving
+  labels:
+    platform.mlops.dev/control: runtime-security
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kserve-kubelet-fine-grained-reader
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes/metrics
+      - nodes/stats
+      - nodes/pods
+      - nodes/healthz
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kserve-kubelet-fine-grained-reader
+subjects:
+  - kind: ServiceAccount
+    name: serving-telemetry-reader
+    namespace: mlops-serving
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kserve-kubelet-fine-grained-reader
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: serving-canary-userns-smoke
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: credit-risk-predictor-canary
+    platform.mlops.dev/control: runtime-security
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: credit-risk-predictor-canary
+    spec:
+      hostUsers: false
+      serviceAccountName: serving-telemetry-reader
+      restartPolicy: Never
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: canary-smoke
+          image: ghcr.io/kevinmeix1/credit-risk-server@sha256:demo
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "kserve_model_platform.runtime_smoke"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "500m"
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: deny-kserve-monitoring-nodes-proxy
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["rbac.authorization.k8s.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["clusterroles"]
+  validations:
+    - expression: "!has(object.rules) || object.rules.all(rule, !has(rule.resources) || !('nodes/proxy' in rule.resources))"
+      message: "Use fine-grained kubelet subresources such as nodes/metrics, nodes/stats, nodes/healthz, or nodes/pods instead of nodes/proxy."
