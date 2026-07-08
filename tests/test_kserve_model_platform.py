@@ -20,6 +20,7 @@ from kserve_model_platform.indexed_job_resilience import build_indexed_job_resil
 from kserve_model_platform.inference_gateway import build_inference_gateway_plan
 from kserve_model_platform.io import read_json, read_jsonl, write_json
 from kserve_model_platform.kuberay_capacity import build_kuberay_capacity_plan
+from kserve_model_platform.model_cache import build_model_cache_plan
 from kserve_model_platform.models import generate_requests, validate_payload
 from kserve_model_platform.monitoring import evaluate_canary
 from kserve_model_platform.multikueue_dispatch import build_multikueue_dispatch_plan
@@ -317,7 +318,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
 
         for expected in ["actions/upload-artifact@v6", "actions/attest@v4", "attestations: write", "GITHUB_STEP_SUMMARY", "make ci-verify", "concurrency"]:
             self.assertIn(expected, workflow)
-        for expected in ["ci-verify:", "index.html", "tenancy_fairness_report.json", "identity_access_report.json", "multikueue_dispatch_plan.json", "provisioning_admission_plan.json", "indexed_job_resilience_plan.json", "elastic_workload_plan.json", "cost_observability_report.json", "deadline_alert_plan.json", "semantic_telemetry_plan.json", "inference_gateway_plan.json", "kuberay_capacity_plan.json", "topology_placement_plan.json", "device_allocation_plan.json", "release_admission_decision.json", "queue_simulation.json", "performance_budget.json", "accelerator_capacity_plan.json", "orchestration_scorecard.json", "supply_chain_evidence.json", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
+        for expected in ["ci-verify:", "index.html", "tenancy_fairness_report.json", "identity_access_report.json", "model_cache_plan.json", "multikueue_dispatch_plan.json", "provisioning_admission_plan.json", "indexed_job_resilience_plan.json", "elastic_workload_plan.json", "cost_observability_report.json", "deadline_alert_plan.json", "semantic_telemetry_plan.json", "inference_gateway_plan.json", "kuberay_capacity_plan.json", "topology_placement_plan.json", "device_allocation_plan.json", "release_admission_decision.json", "queue_simulation.json", "performance_budget.json", "accelerator_capacity_plan.json", "orchestration_scorecard.json", "supply_chain_evidence.json", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
             self.assertIn(expected, makefile)
 
     def test_accelerator_capacity_plan_and_kubernetes_assets_exist(self) -> None:
@@ -531,6 +532,27 @@ class KServeModelServingPlatformTest(unittest.TestCase):
         for expected in ["MultiKueue Dispatch", "InferenceService", "worker clusters", "status.clusterName"]:
             self.assertIn(expected, docs)
 
+    def test_model_cache_plan_and_kserve_assets_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        manifest = (repo / "kserve" / "local-model-cache.yaml").read_text(encoding="utf-8")
+        docs = (repo / "docs" / "model-cache.md").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            report = build_model_cache_plan(root)
+
+            self.assertTrue(report["passed"])
+            self.assertEqual(report["recommended_action"], "enable_kserve_local_model_cache")
+            self.assertEqual(report["cache_policy"]["namespace_scope"], "LocalModelNamespaceCache")
+            self.assertFalse(report["cache_policy"]["latest_tag_allowed"])
+            self.assertEqual(report["status_gates"]["minimum_challenger_copies"], 2)
+            self.assertTrue(any(item["alias"] == "previous-champion" for item in report["model_artifacts"]))
+            self.assertTrue(any(check["name"] == "modelcar_oci_uri_pinned" for check in report["checks"]))
+            self.assertTrue((root / "reports" / "model_cache_plan.json").exists())
+        for expected in ["LocalModelNamespaceCache", "LocalModelNodeGroup", "sourceModelUri", "modelSize", "nodeGroups", "oci://", "credit-risk-router-modelcar"]:
+            self.assertIn(expected, manifest)
+        for expected in ["KServe Local Model Cache", "modelcar OCI", "ModelDownloaded", "PVC"]:
+            self.assertIn(expected, docs)
+
     def test_tenancy_fairness_report_and_kubernetes_assets_exist(self) -> None:
         repo = Path(__file__).resolve().parents[1]
         manifest = (repo / "kubernetes" / "multitenancy-fairness.yaml").read_text(encoding="utf-8")
@@ -577,6 +599,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertIn("indexed_job_resilience", names)
             self.assertIn("provisioning_admission_checks", names)
             self.assertIn("multikueue_dispatch", names)
+            self.assertIn("kserve_model_cache", names)
             self.assertIn("supply_chain_provenance", names)
             self.assertTrue((root / "reports" / "orchestration_scorecard.json").exists())
 
@@ -626,6 +649,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
                 "indexed_job_resilience_plan.json",
                 "provisioning_admission_plan.json",
                 "multikueue_dispatch_plan.json",
+                "model_cache_plan.json",
                 "tenancy_fairness_report.json",
                 "identity_access_report.json",
                 "performance_budget.json",
@@ -687,6 +711,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue((root / "reports" / "elastic_workload_plan.json").exists())
             self.assertTrue((root / "reports" / "indexed_job_resilience_plan.json").exists())
             self.assertTrue((root / "reports" / "multikueue_dispatch_plan.json").exists())
+            self.assertTrue((root / "reports" / "model_cache_plan.json").exists())
             self.assertTrue((root / "reports" / "tenancy_fairness_report.json").exists())
             self.assertTrue((root / "reports" / "identity_access_report.json").exists())
             self.assertTrue((root / "reports" / "performance_budget.json").exists())

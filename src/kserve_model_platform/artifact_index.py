@@ -35,6 +35,7 @@ def render_artifact_index(root: str | Path, *, title: str, description: str, das
         ("Indexed Job Resilience", "indexed_job_resilience_plan.json", "Kubernetes Indexed Jobs, per-index retries, success policy, pod failure policy, and bounded Airflow rollout backfills."),
         ("Provisioning Admission", "provisioning_admission_plan.json", "Kueue ProvisioningRequest capacity checks for shadow analysis, rollback smoke, and GPU explainers."),
         ("MultiKueue Dispatch", "multikueue_dispatch_plan.json", "Kueue MultiKueue dispatch for shadow replay, route conformance, rollback smoke, and GPU explainers."),
+        ("Model Cache", "model_cache_plan.json", "KServe LocalModel cache, modelcar OCI storage, cache-gated canaries, and rollback preloading."),
         ("Performance Budget", "performance_budget.json", "p95/p99 latency, error-rate, canary-volume, and shadow-delta gates with rollback actions."),
         ("Queue Simulation", "queue_simulation.json", "Kueue quota, serving priority, GPU, Airflow pool, and rollback preemption simulation."),
         ("Release Admission", "release_admission_decision.json", "Fail-closed canary admission record combining rollout, SLO, queue, governance, and provenance evidence."),

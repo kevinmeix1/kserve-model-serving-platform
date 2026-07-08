@@ -1,0 +1,119 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: credit-risk-model-cache-runbook
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    platform.openai.com/component: model-cache
+data:
+  cacheGate: "Canary traffic shifts require champion and challenger LocalModelNamespaceCache copies to be downloaded."
+  rollbackGate: "Previous champion modelcar stays cached until the rollback window closes."
+  runbook.md: |
+    Package model artifacts as OCI modelcars with explicit non-latest tags.
+    Wait for status.copies.available to meet the rollout threshold before shifting traffic.
+    Treat ModelDownloadError as a rollout hold, not a model-quality failure.
+    Keep pvc://mlflow-models/credit-risk/* storage URIs as fallback for local clusters without the localmodel component.
+---
+apiVersion: serving.kserve.io/v1alpha1
+kind: LocalModelNodeGroup
+metadata:
+  name: credit-risk-cache-nodes
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    platform.openai.com/component: model-cache
+spec:
+  storageLimit: 20Gi
+  persistentVolumeSpec:
+    accessModes:
+      - ReadWriteOnce
+    capacity:
+      storage: 20Gi
+    hostPath:
+      path: /var/lib/kserve/localmodels/credit-risk
+      type: DirectoryOrCreate
+    persistentVolumeReclaimPolicy: Delete
+    storageClassName: local-path
+  persistentVolumeClaimSpec:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 20Gi
+    storageClassName: local-path
+---
+apiVersion: serving.kserve.io/v1alpha1
+kind: LocalModelNamespaceCache
+metadata:
+  name: credit-risk-champion-cache
+  namespace: mlops-serving
+  labels:
+    mlops.dev/model: credit-risk
+    mlops.dev/stage: champion
+spec:
+  sourceModelUri: oci://ghcr.io/kevinmeix1/credit-risk-champion:2026.07.08
+  modelSize: 384Mi
+  nodeGroups:
+    - credit-risk-cache-nodes
+  serviceAccountName: credit-risk-predictor
+---
+apiVersion: serving.kserve.io/v1alpha1
+kind: LocalModelNamespaceCache
+metadata:
+  name: credit-risk-challenger-cache
+  namespace: mlops-serving
+  labels:
+    mlops.dev/model: credit-risk
+    mlops.dev/stage: challenger
+spec:
+  sourceModelUri: oci://ghcr.io/kevinmeix1/credit-risk-challenger:2026.07.08-rc1
+  modelSize: 416Mi
+  nodeGroups:
+    - credit-risk-cache-nodes
+  serviceAccountName: credit-risk-predictor
+---
+apiVersion: serving.kserve.io/v1alpha1
+kind: LocalModelNamespaceCache
+metadata:
+  name: credit-risk-previous-champion-cache
+  namespace: mlops-serving
+  labels:
+    mlops.dev/model: credit-risk
+    mlops.dev/stage: previous-champion
+spec:
+  sourceModelUri: oci://ghcr.io/kevinmeix1/credit-risk-previous-champion:2026.06.24
+  modelSize: 372Mi
+  nodeGroups:
+    - credit-risk-cache-nodes
+  serviceAccountName: credit-risk-predictor
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: credit-risk-router-modelcar
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    app.kubernetes.io/component: inference-router
+    mlops.dev/model: credit-risk
+    serving.mlops.dev/storage: modelcar
+  annotations:
+    autoscaling.knative.dev/min-scale: "2"
+    autoscaling.knative.dev/max-scale: "8"
+    serving.mlops.dev/cache-gate: LocalModelNamespaceCache
+spec:
+  predictor:
+    serviceAccountName: credit-risk-predictor
+    canaryTrafficPercent: 10
+    model:
+      modelFormat:
+        name: sklearn
+      protocolVersion: v2
+      storageUri: oci://ghcr.io/kevinmeix1/credit-risk-challenger:2026.07.08-rc1
+      resources:
+        requests:
+          cpu: "250m"
+          memory: "512Mi"
+        limits:
+          cpu: "1"
+          memory: "1Gi"
