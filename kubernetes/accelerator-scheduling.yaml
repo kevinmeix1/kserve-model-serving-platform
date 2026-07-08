@@ -1,0 +1,62 @@
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ResourceFlavor
+metadata:
+  name: gpu-l4-shared
+spec:
+  nodeLabels:
+    accelerator: nvidia-l4
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ResourceFlavor
+metadata:
+  name: gpu-a100-mig
+spec:
+  nodeLabels:
+    accelerator: nvidia-a100
+    nvidia.com/mig.strategy: mixed
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: kserve-accelerator-queue
+spec:
+  namespaceSelector: {}
+  resourceGroups:
+    - coveredResources: ["cpu", "memory", "nvidia.com/gpu", "nvidia.com/mig-1g.10gb"]
+      flavors:
+        - name: gpu-l4-shared
+          resources:
+            - name: nvidia.com/gpu
+              nominalQuota: 4
+            - name: memory
+              nominalQuota: 256Gi
+        - name: gpu-a100-mig
+          resources:
+            - name: nvidia.com/mig-1g.10gb
+              nominalQuota: 8
+            - name: memory
+              nominalQuota: 320Gi
+---
+apiVersion: resource.k8s.io/v1beta1
+kind: ResourceClaimTemplate
+metadata:
+  name: nvidia-l4-dra-claim
+  namespace: mlops-serving
+spec:
+  spec:
+    devices:
+      requests:
+        - name: gpu
+          exactly:
+            deviceClassName: gpu.nvidia.com
+            selectors:
+              - cel:
+                  expression: 'device.attributes["gpu.nvidia.com"].model == "L4"'

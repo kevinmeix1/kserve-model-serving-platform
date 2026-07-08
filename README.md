@@ -103,6 +103,8 @@ For GitHub artifact attestations, SLSA provenance, Sigstore policy-controller ad
 
 For an automated scan of advanced Airflow, Kubernetes, lineage, scaling, GitOps, and security controls, see [orchestration scorecard](docs/orchestration-scorecard.md).
 
+For GPU ResourceFlavors, Dynamic Resource Allocation notes, MIG/time-slicing trade-offs, and accelerator quota planning, see [accelerator scheduling](docs/accelerator-scheduling.md).
+
 ## Canary Gates
 
 The challenger is recommended for promotion only when:
