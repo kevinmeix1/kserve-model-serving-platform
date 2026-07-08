@@ -9,7 +9,7 @@ try:
     from airflow.operators.empty import EmptyOperator
     from airflow.operators.python import BranchPythonOperator
     from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
-    from airflow.sdk import Asset
+    from airflow.sdk import Asset, CronPartitionTimetable, DAG, PartitionedAssetTimetable, StartOfHourMapper
     from airflow.utils.trigger_rule import TriggerRule
 except Exception:
     AIRFLOW_AVAILABLE = False
@@ -61,6 +61,9 @@ def kserve_pod(task_id: str, command: str, *, priority_weight: int = 1):
 if AIRFLOW_AVAILABLE:
     CHALLENGER = Asset("mlflow://models/credit-risk@challenger")
     ROUTER = Asset("kserve://mlops-serving/credit-risk-router")
+    WEIGHTED_ROUTE = Asset("gateway://mlops-serving/credit-risk-weighted-route")
+    CANARY_METRICS = Asset("prometheus://kserve/credit-risk/canary-metrics")
+    RELEASE_DECISION = Asset("serving://credit-risk/release-decision")
     INCIDENTS = Asset("observability://credit-risk/incidents")
 
     @dag(
@@ -171,3 +174,44 @@ if AIRFLOW_AVAILABLE:
         branch >> rollback >> publish
 
     progressive_kserve_rollout()
+
+    with DAG(
+        dag_id="partitioned_kserve_canary_observation",
+        schedule=CronPartitionTimetable("*/15 * * * *", timezone="UTC"),
+        catchup=False,
+        max_active_runs=4,
+        tags=["airflow-3.2", "asset-partitioning", "kserve", "canary"],
+    ):
+        @task(outlets=[CANARY_METRICS])
+        def collect_canary_partition(dag_run=None) -> dict[str, str | None]:
+            partition_key = dag_run.partition_key if dag_run else None
+            return {
+                "partition_key": partition_key,
+                "route_asset": WEIGHTED_ROUTE.uri,
+                "telemetry_asset": CANARY_METRICS.uri,
+            }
+
+        collect_canary_partition()
+
+    with DAG(
+        dag_id="partitioned_kserve_route_decision",
+        schedule=PartitionedAssetTimetable(
+            assets=CHALLENGER & ROUTER & WEIGHTED_ROUTE & CANARY_METRICS,
+            default_partition_mapper=StartOfHourMapper(),
+        ),
+        catchup=False,
+        max_active_runs=1,
+        tags=["airflow-3.2", "partitioned-backfill", "kserve", "rollback"],
+    ):
+        @task(outlets=[RELEASE_DECISION, INCIDENTS])
+        def evaluate_route_partition(dag_run=None) -> dict[str, str | None]:
+            partition_key = dag_run.partition_key if dag_run else None
+            return {
+                "partition_key": partition_key,
+                "model_asset": CHALLENGER.uri,
+                "route_asset": WEIGHTED_ROUTE.uri,
+                "decision_asset": RELEASE_DECISION.uri,
+                "evidence": "aligned model version, route generation, and canary telemetry partition",
+            }
+
+        evaluate_route_partition()

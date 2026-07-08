@@ -8,6 +8,7 @@ from .accelerator_plan import build_accelerator_capacity_plan
 from .admin_access_diagnostics import build_admin_access_diagnostic_plan
 from .advanced_device_sharing import build_advanced_device_sharing_plan
 from .artifact_index import render_artifact_index
+from .asset_partitioning import build_asset_partitioning_plan
 from .chaos import run_chaos_drill
 from .cloud_migration import build_cloud_migration_plan
 from .cohort_fair_sharing import build_cohort_fair_sharing_plan
@@ -191,6 +192,7 @@ def demo(output: str | Path) -> dict:
     multikueue_dispatch = build_multikueue_dispatch_plan(root)
     model_cache = build_model_cache_plan(root)
     dag_bundle_versioning = build_dag_bundle_versioning_plan(root)
+    asset_partitioning = build_asset_partitioning_plan(root)
     event_driven_assets = build_event_driven_assets_plan(root)
     pod_resource_envelopes = build_pod_resource_envelope_plan(root)
     cohort_fair_sharing = build_cohort_fair_sharing_plan(root)
@@ -249,6 +251,7 @@ def demo(output: str | Path) -> dict:
         "multikueue_dispatch": multikueue_dispatch,
         "model_cache": model_cache,
         "dag_bundle_versioning": dag_bundle_versioning,
+        "asset_partitioning": asset_partitioning,
         "event_driven_assets": event_driven_assets,
         "pod_resource_envelopes": pod_resource_envelopes,
         "cohort_fair_sharing": cohort_fair_sharing,
@@ -310,6 +313,7 @@ def main(argv: list[str] | None = None) -> int:
         "multikueue-dispatch",
         "model-cache",
         "dag-bundle-plan",
+        "asset-partitioning-plan",
         "event-driven-assets",
         "pod-resource-envelopes",
         "cohort-fair-sharing",
@@ -404,6 +408,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_model_cache_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "dag-bundle-plan":
         print(json.dumps(build_dag_bundle_versioning_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "asset-partitioning-plan":
+        print(json.dumps(build_asset_partitioning_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "event-driven-assets":
         print(json.dumps(build_event_driven_assets_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "pod-resource-envelopes":

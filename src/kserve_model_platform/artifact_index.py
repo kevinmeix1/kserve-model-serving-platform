@@ -41,6 +41,7 @@ def render_artifact_index(root: str | Path, *, title: str, description: str, das
         ("MultiKueue Dispatch", "multikueue_dispatch_plan.json", "Kueue MultiKueue dispatch for shadow replay, route conformance, rollback smoke, and GPU explainers."),
         ("Model Cache", "model_cache_plan.json", "KServe LocalModel cache, modelcar OCI storage, cache-gated canaries, and rollback preloading."),
         ("DAG Bundle Versioning", "dag_bundle_versioning_plan.json", "Airflow 3 GitDagBundle versioning for progressive rollout reruns, route replay, and serving backfills."),
+        ("Asset Partitioning", "asset_partitioning_plan.json", "Airflow 3.2 partitioned assets for canary telemetry, route decisions, rollback smoke, and partition-key lineage."),
         ("Event-Driven Assets", "event_driven_assets_plan.json", "Airflow 3 AssetWatchers for challenger registration, KServe router readiness, and Gateway route convergence."),
         ("Pod Resource Envelopes", "pod_resource_envelope_plan.json", "Kubernetes pod-level resources, scheduling gates, KServe cache readiness, and scheduler-churn observability."),
         ("Cohort Fair Sharing", "cohort_fair_sharing_plan.json", "Kueue Fair Sharing, Admission Fair Sharing, serving queue weights, borrowing/lending limits, and preemption guardrails."),
