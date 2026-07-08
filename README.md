@@ -111,6 +111,8 @@ For p95/p99 serving latency, canary-volume, shadow-delta, and rollback regressio
 
 For Kueue quota pressure, serving priority, rollback preemption, GPU use, and Airflow pool examples, see [queue capacity simulation](docs/queue-capacity-simulation.md).
 
+For fail-closed canary decisions that combine rollout state, SLOs, queue admission, governance, provenance, and rollback capacity, see [release admission control](docs/release-admission-control.md).
+
 ## Canary Gates
 
 The challenger is recommended for promotion only when:

@@ -1,4 +1,4 @@
-.PHONY: demo deploy predict simulate monitor promote rollback health plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan performance-budget queue-simulation ci-verify minikube-up kubernetes-plan test clean
+.PHONY: demo deploy predict simulate monitor promote rollback health plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan performance-budget queue-simulation release-admission ci-verify minikube-up kubernetes-plan test clean
 
 demo:
 	PYTHONPATH=src python3 -m kserve_model_platform demo --output .local
@@ -63,6 +63,9 @@ performance-budget:
 queue-simulation:
 	PYTHONPATH=src python3 -m kserve_model_platform queue-simulation --output .local
 
+release-admission:
+	PYTHONPATH=src python3 -m kserve_model_platform release-admission --output .local
+
 ci-verify:
 	PYTHONPATH=src python3 -m compileall -q src tests
 	test -f .local/reports/kserve_serving_dashboard.html
@@ -75,6 +78,7 @@ ci-verify:
 	test -f .local/reports/accelerator_capacity_plan.json
 	test -f .local/reports/performance_budget.json
 	test -f .local/reports/queue_simulation.json
+	test -f .local/reports/release_admission_decision.json
 	test -f .local/supply-chain/subject.checksums.txt
 	python3 -m json.tool .local/reports/governance_evidence_bundle.json >/dev/null
 	python3 -m json.tool .local/reports/slo_error_budget.json >/dev/null
@@ -84,6 +88,7 @@ ci-verify:
 	python3 -m json.tool .local/reports/accelerator_capacity_plan.json >/dev/null
 	python3 -m json.tool .local/reports/performance_budget.json >/dev/null
 	python3 -m json.tool .local/reports/queue_simulation.json >/dev/null
+	python3 -m json.tool .local/reports/release_admission_decision.json >/dev/null
 
 promote:
 	PYTHONPATH=src python3 -m kserve_model_platform promote --output .local
@@ -112,6 +117,7 @@ minikube-up:
 	@echo "  kubectl apply -f kubernetes/accelerator-scheduling.yaml"
 	@echo "  kubectl apply -f kubernetes/performance-budget-policy.yaml"
 	@echo "  kubectl apply -f kubernetes/queue-simulation-policy.yaml"
+	@echo "  kubectl apply -f kubernetes/release-admission-policy.yaml"
 	@echo "  kubectl apply -f gitops/gitops-promotion.yaml"
 	@echo "  kubectl apply -f monitoring/prometheus/prometheus.yml"
 

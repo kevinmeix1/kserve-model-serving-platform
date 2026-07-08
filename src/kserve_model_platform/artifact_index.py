@@ -26,6 +26,7 @@ def render_artifact_index(root: str | Path, *, title: str, description: str, das
         ("Accelerator Plan", "accelerator_capacity_plan.json", "GPU, DRA, Kueue, MIG, and time-slicing plan for accelerator-aware serving."),
         ("Performance Budget", "performance_budget.json", "p95/p99 latency, error-rate, canary-volume, and shadow-delta gates with rollback actions."),
         ("Queue Simulation", "queue_simulation.json", "Kueue quota, serving priority, GPU, Airflow pool, and rollback preemption simulation."),
+        ("Release Admission", "release_admission_decision.json", "Fail-closed canary admission record combining rollout, SLO, queue, governance, and provenance evidence."),
         ("Resource Optimization", "resource_optimization.json", "Rightsizing, HPA, VPA, KEDA, and prewarm recommendations for serving workloads."),
         ("Network Security", "network_security.json", "mTLS, network policy, and router-to-predictor access topology for model serving."),
         ("Chaos Drill", "chaos_drill_report.json", "Serving failure-injection scenarios with blast radius and rollback controls."),

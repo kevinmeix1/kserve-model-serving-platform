@@ -19,6 +19,7 @@ from kserve_model_platform.orchestration_scorecard import build_orchestration_sc
 from kserve_model_platform.policy_audit import audit_platform_policy
 from kserve_model_platform.performance_budget import build_performance_budget_report
 from kserve_model_platform.queue_simulator import build_queue_simulation
+from kserve_model_platform.release_admission import build_release_admission_decision, evaluate_release_admission
 from kserve_model_platform.registry import aliases
 from kserve_model_platform.resource_optimizer import build_resource_optimization_report
 from kserve_model_platform.rollout_control import build_rollout_plan, evaluate_rollout, wilson_error_upper_bound
@@ -92,6 +93,38 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue((root / "reports" / "queue_simulation.json").exists())
             self.assertIn("PriorityClass", manifest)
             self.assertIn("CreditRiskServingQueuePressureHigh", manifest)
+
+    def test_release_admission_advances_or_rolls_back_canary(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        manifest = (repo / "kubernetes" / "release-admission-policy.yaml").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_json(root / "reports" / "slo_error_budget.json", {"max_burn_rate": 0.2, "release_freeze": False, "recommended_action": "allow_release"})
+            write_json(root / "reports" / "performance_budget.json", {"passed": True, "checks": []})
+            write_json(root / "reports" / "queue_simulation.json", {"passed": True, "pending_count": 0, "simulation": {"pending": []}})
+            write_json(root / "reports" / "governance_evidence_bundle.json", {"release": {"decision": "approved_for_promotion"}})
+            write_json(root / "reports" / "supply_chain_evidence.json", {"artifact_count": 8, "subject": {"attestation_action": "actions/attest@v4"}})
+            write_json(root / "reports" / "rollout_control_plan.json", {"recommended_action": "advance", "next_percent": 25})
+            write_json(root / "reports" / "canary_decision.json", {"passed": True})
+
+            decision = build_release_admission_decision(root)
+            rollback_decision = evaluate_release_admission(
+                slo={"max_burn_rate": 0.2, "release_freeze": False},
+                performance={"passed": True, "checks": []},
+                queue={"passed": True, "pending_count": 0, "simulation": {"pending": []}},
+                governance={"release": {"decision": "approved_for_promotion"}},
+                supply_chain={"artifact_count": 8, "subject": {"attestation_action": "actions/attest@v4"}},
+                rollout_plan={"recommended_action": "rollback", "next_percent": 10},
+                canary_decision={"passed": False},
+            )
+
+            self.assertEqual(decision["decision"]["recommended_action"], "advance_canary")
+            self.assertFalse(decision["decision"]["unsafe_allow"])
+            self.assertEqual(rollback_decision["recommended_action"], "rollback_challenger")
+            self.assertTrue((root / "reports" / "release_admission_decision.json").exists())
+            self.assertIn("ValidatingAdmissionPolicy", manifest)
+            self.assertIn("AnalysisTemplate", manifest)
+            self.assertIn("CreditRiskReleaseAdmissionUnsafeAllow", manifest)
 
     def test_performance_budget_report_and_prometheus_assets_exist(self) -> None:
         repo = Path(__file__).resolve().parents[1]
@@ -269,7 +302,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
 
         for expected in ["actions/upload-artifact@v6", "actions/attest@v4", "attestations: write", "GITHUB_STEP_SUMMARY", "make ci-verify", "concurrency"]:
             self.assertIn(expected, workflow)
-        for expected in ["ci-verify:", "index.html", "queue_simulation.json", "performance_budget.json", "accelerator_capacity_plan.json", "orchestration_scorecard.json", "supply_chain_evidence.json", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
+        for expected in ["ci-verify:", "index.html", "release_admission_decision.json", "queue_simulation.json", "performance_budget.json", "accelerator_capacity_plan.json", "orchestration_scorecard.json", "supply_chain_evidence.json", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
             self.assertIn(expected, makefile)
 
     def test_accelerator_capacity_plan_and_kubernetes_assets_exist(self) -> None:
@@ -337,6 +370,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
                 "accelerator_capacity_plan.json",
                 "performance_budget.json",
                 "queue_simulation.json",
+                "release_admission_decision.json",
                 "resource_optimization.json",
                 "network_security.json",
                 "chaos_drill_report.json",
@@ -385,6 +419,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue((root / "reports" / "accelerator_capacity_plan.json").exists())
             self.assertTrue((root / "reports" / "performance_budget.json").exists())
             self.assertTrue((root / "reports" / "queue_simulation.json").exists())
+            self.assertTrue((root / "reports" / "release_admission_decision.json").exists())
             self.assertTrue((root / "reports" / "orchestration_scorecard.json").exists())
             self.assertTrue((root / "reports" / "supply_chain_evidence.json").exists())
             self.assertEqual(result["simulation"]["success_count"], 120)

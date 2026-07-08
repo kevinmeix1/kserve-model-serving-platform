@@ -1,0 +1,90 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: credit-risk-serving-release-evidence
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["serving.kserve.io"]
+        apiVersions: ["v1beta1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["inferenceservices"]
+  validations:
+    - expression: "has(object.metadata.annotations) && has(object.metadata.annotations['mlops.dev/release-decision'])"
+      message: "KServe updates require the generated release admission decision."
+    - expression: "object.metadata.annotations['mlops.dev/release-decision'] in ['advance_canary', 'promote_challenger', 'hold_canary', 'freeze_canary', 'rollback_challenger', 'throttle_serving_queue']"
+      message: "release-decision must match a serving controller action."
+    - expression: "has(object.metadata.annotations['mlops.dev/evidence-sha']) && size(object.metadata.annotations['mlops.dev/evidence-sha']) == 64"
+      message: "release admission requires a sha256 evidence bundle reference."
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: credit-risk-serving-release-evidence
+spec:
+  policyName: credit-risk-serving-release-evidence
+  validationActions: ["Deny"]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: credit-risk-serving-admission-analysis
+  namespace: mlops-serving
+spec:
+  metrics:
+    - name: canary-error-rate
+      interval: 1m
+      count: 5
+      failureLimit: 1
+      successCondition: result[0] < 0.01
+      provider:
+        prometheus:
+          address: http://prometheus-operated.monitoring.svc:9090
+          query: sum(rate(kserve_request_errors_total{model="credit-risk",route="challenger"}[5m])) / clamp_min(sum(rate(kserve_request_total{model="credit-risk",route="challenger"}[5m])), 1)
+    - name: canary-shadow-delta
+      interval: 1m
+      count: 5
+      failureLimit: 1
+      successCondition: result[0] < 0.12
+      provider:
+        prometheus:
+          address: http://prometheus-operated.monitoring.svc:9090
+          query: avg_over_time(model_shadow_score_delta{model="credit-risk"}[10m])
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: credit-risk-release-admission
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: credit-risk.release.admission
+      rules:
+        - alert: CreditRiskReleaseAdmissionUnsafeAllow
+          expr: mlops_release_admission_unsafe_allow{service="credit-risk"} > 0
+          for: 1m
+          labels:
+            severity: critical
+            team: ml-platform
+          annotations:
+            summary: Serving admission attempted to advance traffic while one or more fail-closed gates failed.
+        - alert: CreditRiskCanaryFrozen
+          expr: mlops_release_admission_freeze{service="credit-risk"} > 0
+          for: 5m
+          labels:
+            severity: warning
+            team: serving
+          annotations:
+            summary: Credit-risk canary is frozen by SLO, rollout, queue, governance, or provenance policy.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: credit-risk-release-admission-assets
+  namespace: mlops-serving
+data:
+  airflow_assets.txt: |
+    asset://mlops-serving/credit-risk/canary-decision
+    asset://mlops-serving/credit-risk/rollout-control-plan
+    asset://mlops-serving/credit-risk/release-admission-decision
