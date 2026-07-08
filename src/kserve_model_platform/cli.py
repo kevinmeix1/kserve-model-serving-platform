@@ -12,6 +12,7 @@ from .asset_partitioning import build_asset_partitioning_plan
 from .chaos import run_chaos_drill
 from .cloud_migration import build_cloud_migration_plan
 from .cohort_fair_sharing import build_cohort_fair_sharing_plan
+from .control_plane_diagnostics import build_control_plane_diagnostics_plan
 from .cost_observability import build_cost_observability_report
 from .dag_bundle_versioning import build_dag_bundle_versioning_plan
 from .dashboard import render_dashboard
@@ -208,6 +209,7 @@ def demo(output: str | Path) -> dict:
     queue_simulation = build_queue_simulation(root)
     workload_aware_scheduling = build_workload_aware_scheduling_plan(root)
     runtime_security = build_runtime_security_plan(root)
+    control_plane_diagnostics = build_control_plane_diagnostics_plan(root)
     supply_chain = build_supply_chain_evidence(
         root,
         project="KServe Model Serving Platform",
@@ -270,6 +272,7 @@ def demo(output: str | Path) -> dict:
         "queue_simulation": queue_simulation,
         "workload_aware_scheduling": workload_aware_scheduling,
         "runtime_security": runtime_security,
+        "control_plane_diagnostics": control_plane_diagnostics,
         "release_admission": release_admission,
         "artifact_index": str(artifact_index),
         "orchestration_scorecard": orchestration_scorecard,
@@ -335,6 +338,7 @@ def main(argv: list[str] | None = None) -> int:
         "queue-simulation",
         "workload-aware-scheduling",
         "runtime-security",
+        "control-plane-diagnostics",
         "release-admission",
     ]:
         cmd = sub.add_parser(command)
@@ -446,6 +450,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_workload_aware_scheduling_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "runtime-security":
         print(json.dumps(build_runtime_security_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "control-plane-diagnostics":
+        print(json.dumps(build_control_plane_diagnostics_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "release-admission":
         print(json.dumps(build_release_admission_decision(args.output), indent=2, sort_keys=True))
     return 0

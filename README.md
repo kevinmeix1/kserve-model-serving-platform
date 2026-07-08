@@ -157,6 +157,8 @@ For Kubernetes v1.36 Workload/PodGroup readiness across shadow replay, route con
 
 For Kubernetes v1.36 user namespaces, `hostUsers: false`, fine-grained kubelet authorization, and `nodes/proxy` regression prevention for serving telemetry, see [runtime security](docs/runtime-security.md).
 
+For Kubernetes v1.36 controller staleness mitigation, `/statusz`, `/flagz`, PSI metrics, and native-histogram readiness for serving route automation, see [control plane diagnostics](docs/control-plane-diagnostics.md).
+
 For portable OpenTelemetry attributes, GenAI token/cost fields, Kubernetes correlation, and telemetry redaction guardrails, see [semantic telemetry](docs/semantic-telemetry.md).
 
 For serving tenant quotas, Kueue cohorts, Airflow pools, rollback reservations, chargeback labels, and noisy-neighbor controls, see [multi-tenant fairness](docs/multi-tenant-fairness.md).

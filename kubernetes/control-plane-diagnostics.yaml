@@ -1,0 +1,66 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kserve-control-plane-zpages
+  namespace: mlops-serving
+  labels:
+    platform.mlops.dev/control: control-plane-diagnostics
+spec:
+  selector:
+    matchLabels:
+      component: kube-control-plane
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  endpoints:
+    - port: https
+      path: /statusz
+      interval: 60s
+      scheme: https
+    - port: https
+      path: /flagz
+      interval: 300s
+      scheme: https
+    - port: https
+      path: /metrics
+      interval: 30s
+      scheme: https
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kserve-control-plane-diagnostics
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: kserve.control-plane.freshness
+      rules:
+        - alert: KServeRouteControllerCacheStale
+          expr: max(mlops_controller_resource_version_lag_seconds{controller=~"kserve-route-controller|shadow-analysis-controller|rollback-route-controller"}) > 60
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: KServe route automation is reconciling from stale cache state
+            runbook: docs/control-plane-diagnostics.md
+        - alert: ComponentFlagDrift
+          expr: max(kube_component_flag_drift{feature_gate=~"ComponentStatusz|ComponentFlagz|KubeletPSI|NativeHistogramMetrics"}) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Kubernetes component /flagz drift detected
+        - alert: KubeletPSIMemoryStallHigh
+          expr: max(rate(kubelet_psi_memory_some_seconds_total[5m])) > 0.2
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Serving node memory pressure stall information is elevated
+        - alert: NativeHistogramStorageBudgetHigh
+          expr: max(prometheus_tsdb_head_series{job="kube-apiserver", histogram_type="native"}) > 500000
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Native histogram series budget is above the serving release profile
