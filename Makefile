@@ -1,4 +1,4 @@
-.PHONY: demo deploy predict simulate monitor promote rollback health plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan device-plan topology-plan kuberay-plan inference-gateway-plan semantic-telemetry-plan deadline-alerts-plan tenancy-report identity-report performance-budget queue-simulation release-admission ci-verify minikube-up kubernetes-plan test clean
+.PHONY: demo deploy predict simulate monitor promote rollback health plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan device-plan topology-plan kuberay-plan inference-gateway-plan semantic-telemetry-plan deadline-alerts-plan cost-observability tenancy-report identity-report performance-budget queue-simulation release-admission ci-verify minikube-up kubernetes-plan test clean
 
 demo:
 	PYTHONPATH=src python3 -m kserve_model_platform demo --output .local
@@ -75,6 +75,9 @@ semantic-telemetry-plan:
 deadline-alerts-plan:
 	PYTHONPATH=src python3 -m kserve_model_platform deadline-alerts-plan --output .local
 
+cost-observability:
+	PYTHONPATH=src python3 -m kserve_model_platform cost-observability --output .local
+
 tenancy-report:
 	PYTHONPATH=src python3 -m kserve_model_platform tenancy-report --output .local
 
@@ -106,6 +109,7 @@ ci-verify:
 	test -f .local/reports/inference_gateway_plan.json
 	test -f .local/reports/semantic_telemetry_plan.json
 	test -f .local/reports/deadline_alert_plan.json
+	test -f .local/reports/cost_observability_report.json
 	test -f .local/reports/tenancy_fairness_report.json
 	test -f .local/reports/identity_access_report.json
 	test -f .local/reports/performance_budget.json
@@ -124,6 +128,7 @@ ci-verify:
 	python3 -m json.tool .local/reports/inference_gateway_plan.json >/dev/null
 	python3 -m json.tool .local/reports/semantic_telemetry_plan.json >/dev/null
 	python3 -m json.tool .local/reports/deadline_alert_plan.json >/dev/null
+	python3 -m json.tool .local/reports/cost_observability_report.json >/dev/null
 	python3 -m json.tool .local/reports/tenancy_fairness_report.json >/dev/null
 	python3 -m json.tool .local/reports/identity_access_report.json >/dev/null
 	python3 -m json.tool .local/reports/performance_budget.json >/dev/null
@@ -164,6 +169,7 @@ minikube-up:
 	@echo "  kubectl apply -f kubernetes/performance-budget-policy.yaml"
 	@echo "  kubectl apply -f kubernetes/queue-simulation-policy.yaml"
 	@echo "  kubectl apply -f kubernetes/release-admission-policy.yaml"
+	@echo "  kubectl apply -f kubernetes/opencost-finops.yaml"
 	@echo "  kubectl apply -f gitops/gitops-promotion.yaml"
 	@echo "  kubectl apply -f monitoring/prometheus/prometheus.yml"
 
