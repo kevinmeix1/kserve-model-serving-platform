@@ -1,4 +1,4 @@
-.PHONY: demo deploy predict simulate monitor promote rollback health plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan device-plan topology-plan kuberay-plan inference-gateway-plan tenancy-report identity-report performance-budget queue-simulation release-admission ci-verify minikube-up kubernetes-plan test clean
+.PHONY: demo deploy predict simulate monitor promote rollback health plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan device-plan topology-plan kuberay-plan inference-gateway-plan semantic-telemetry-plan tenancy-report identity-report performance-budget queue-simulation release-admission ci-verify minikube-up kubernetes-plan test clean
 
 demo:
 	PYTHONPATH=src python3 -m kserve_model_platform demo --output .local
@@ -69,6 +69,9 @@ kuberay-plan:
 inference-gateway-plan:
 	PYTHONPATH=src python3 -m kserve_model_platform inference-gateway-plan --output .local
 
+semantic-telemetry-plan:
+	PYTHONPATH=src python3 -m kserve_model_platform semantic-telemetry-plan --output .local
+
 tenancy-report:
 	PYTHONPATH=src python3 -m kserve_model_platform tenancy-report --output .local
 
@@ -98,6 +101,7 @@ ci-verify:
 	test -f .local/reports/topology_placement_plan.json
 	test -f .local/reports/kuberay_capacity_plan.json
 	test -f .local/reports/inference_gateway_plan.json
+	test -f .local/reports/semantic_telemetry_plan.json
 	test -f .local/reports/tenancy_fairness_report.json
 	test -f .local/reports/identity_access_report.json
 	test -f .local/reports/performance_budget.json
@@ -114,6 +118,7 @@ ci-verify:
 	python3 -m json.tool .local/reports/topology_placement_plan.json >/dev/null
 	python3 -m json.tool .local/reports/kuberay_capacity_plan.json >/dev/null
 	python3 -m json.tool .local/reports/inference_gateway_plan.json >/dev/null
+	python3 -m json.tool .local/reports/semantic_telemetry_plan.json >/dev/null
 	python3 -m json.tool .local/reports/tenancy_fairness_report.json >/dev/null
 	python3 -m json.tool .local/reports/identity_access_report.json >/dev/null
 	python3 -m json.tool .local/reports/performance_budget.json >/dev/null

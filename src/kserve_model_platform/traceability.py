@@ -28,10 +28,40 @@ def span(trace_id: str, name: str, *, parent: str | None, service: str, duration
 def build_trace_report(root: str | Path) -> dict:
     root = Path(root)
     trace_id = _hex("credit-risk-serving-trace", 32)
-    request = span(trace_id, "gateway.route", parent=None, service="gateway-api", duration_ms=1.4, attributes={"route": "credit-risk-weighted-route"})
-    kserve = span(trace_id, "kserve.predict", parent=request["span_id"], service="kserve", duration_ms=23.0, attributes={"protocol": "v2"})
-    model = span(trace_id, "model.score", parent=kserve["span_id"], service="sklearnserver", duration_ms=7.5, attributes={"model": "credit-risk"})
-    shadow = span(trace_id, "shadow.compare", parent=kserve["span_id"], service="sklearnserver", duration_ms=6.2, attributes={"comparison": "champion_vs_challenger"})
+    request = span(
+        trace_id,
+        "gateway.route",
+        parent=None,
+        service="gateway-api",
+        duration_ms=1.4,
+        attributes={
+            "route": "credit-risk-weighted-route",
+            "service.name": "gateway-api",
+            "k8s.namespace.name": "mlops-serving",
+            "inference.gateway.objective": "credit-risk-online",
+            "gen_ai.request.model": "credit-risk-v2",
+        },
+    )
+    kserve = span(
+        trace_id,
+        "kserve.predict",
+        parent=request["span_id"],
+        service="kserve",
+        duration_ms=23.0,
+        attributes={
+            "protocol": "v2",
+            "service.name": "kserve",
+            "k8s.namespace.name": "mlops-serving",
+            "k8s.pod.name": "credit-risk-predictor-0",
+            "ml.model.version": "challenger",
+            "gen_ai.response.model": "credit-risk-v2",
+            "gen_ai.usage.input_tokens": 64,
+            "gen_ai.usage.output_tokens": 8,
+            "inference.estimated_cost_usd": 0.0004,
+        },
+    )
+    model = span(trace_id, "model.score", parent=kserve["span_id"], service="sklearnserver", duration_ms=7.5, attributes={"model": "credit-risk", "ml.model.version": "challenger"})
+    shadow = span(trace_id, "shadow.compare", parent=kserve["span_id"], service="sklearnserver", duration_ms=6.2, attributes={"comparison": "champion_vs_challenger", "ml.model.version": "champion"})
     monitor = span(trace_id, "canary.evaluate", parent=kserve["span_id"], service="airflow", duration_ms=12.0, attributes={"policy": "wilson_error_bound"})
     spans = [request, kserve, model, shadow, monitor]
     report = {

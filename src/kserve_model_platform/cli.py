@@ -31,6 +31,7 @@ from .resource_optimizer import build_resource_optimization_report
 from .rollout_control import build_rollout_plan
 from .serving import deploy as deploy_kserve
 from .serving import health, predict
+from .semantic_telemetry import build_semantic_telemetry_plan
 from .slo import build_slo_report
 from .supply_chain import build_supply_chain_evidence
 from .tenancy import build_tenancy_report
@@ -160,6 +161,7 @@ def demo(output: str | Path) -> dict:
     topology_placement = build_topology_placement_plan(root)
     kuberay_capacity = build_kuberay_capacity_plan(root)
     inference_gateway = build_inference_gateway_plan(root)
+    semantic_telemetry = build_semantic_telemetry_plan(root)
     tenancy = build_tenancy_report(root)
     identity_access = build_identity_access_report(root)
     performance_budget = build_performance_budget_report(root)
@@ -200,6 +202,7 @@ def demo(output: str | Path) -> dict:
         "topology_placement": topology_placement,
         "kuberay_capacity": kuberay_capacity,
         "inference_gateway": inference_gateway,
+        "semantic_telemetry": semantic_telemetry,
         "tenancy": tenancy,
         "identity_access": identity_access,
         "performance_budget": performance_budget,
@@ -243,6 +246,7 @@ def main(argv: list[str] | None = None) -> int:
         "topology-plan",
         "kuberay-plan",
         "inference-gateway-plan",
+        "semantic-telemetry-plan",
         "tenancy-report",
         "identity-report",
         "performance-budget",
@@ -306,6 +310,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_kuberay_capacity_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "inference-gateway-plan":
         print(json.dumps(build_inference_gateway_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "semantic-telemetry-plan":
+        print(json.dumps(build_semantic_telemetry_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "tenancy-report":
         print(json.dumps(build_tenancy_report(args.output), indent=2, sort_keys=True))
     elif args.command == "identity-report":
