@@ -123,6 +123,8 @@ For Kubernetes Indexed Jobs, per-index retry budgets, `successPolicy`, `podFailu
 
 For Kueue ProvisioningRequest admission checks that gate shadow analysis, rollback smoke tests, and GPU explainers without queuing online predictors, see [provisioning admission](docs/provisioning-admission.md).
 
+For Kubernetes pod-level resource envelopes, stable scheduling gates, KServe cache readiness checks, and scheduler-churn metrics, see [pod resource envelopes](docs/pod-resource-envelopes.md).
+
 For Kueue MultiKueue manager-to-worker dispatch of shadow replay, route conformance, rollback smoke, and GPU explainer jobs without queueing live predictors, see [MultiKueue dispatch](docs/multikueue-dispatch.md).
 
 For KServe LocalModelCache, modelcar OCI storage, cache-gated canaries, and rollback preloading, see [local model cache](docs/model-cache.md).

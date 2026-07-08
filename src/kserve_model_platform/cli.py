@@ -31,6 +31,7 @@ from .network_security import build_network_security_report
 from .orchestration_scorecard import build_orchestration_scorecard
 from .policy_audit import audit_platform_policy
 from .performance_budget import build_performance_budget_report
+from .pod_resource_envelopes import build_pod_resource_envelope_plan
 from .provisioning_admission import build_provisioning_admission_plan
 from .queue_simulator import build_queue_simulation
 from .release_admission import build_release_admission_decision
@@ -180,6 +181,7 @@ def demo(output: str | Path) -> dict:
     model_cache = build_model_cache_plan(root)
     dag_bundle_versioning = build_dag_bundle_versioning_plan(root)
     event_driven_assets = build_event_driven_assets_plan(root)
+    pod_resource_envelopes = build_pod_resource_envelope_plan(root)
     tenancy = build_tenancy_report(root)
     identity_access = build_identity_access_report(root)
     performance_budget = build_performance_budget_report(root)
@@ -230,6 +232,7 @@ def demo(output: str | Path) -> dict:
         "model_cache": model_cache,
         "dag_bundle_versioning": dag_bundle_versioning,
         "event_driven_assets": event_driven_assets,
+        "pod_resource_envelopes": pod_resource_envelopes,
         "tenancy": tenancy,
         "identity_access": identity_access,
         "performance_budget": performance_budget,
@@ -283,6 +286,7 @@ def main(argv: list[str] | None = None) -> int:
         "model-cache",
         "dag-bundle-plan",
         "event-driven-assets",
+        "pod-resource-envelopes",
         "tenancy-report",
         "identity-report",
         "performance-budget",
@@ -366,6 +370,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_dag_bundle_versioning_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "event-driven-assets":
         print(json.dumps(build_event_driven_assets_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "pod-resource-envelopes":
+        print(json.dumps(build_pod_resource_envelope_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "tenancy-report":
         print(json.dumps(build_tenancy_report(args.output), indent=2, sort_keys=True))
     elif args.command == "identity-report":

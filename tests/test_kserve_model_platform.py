@@ -30,6 +30,7 @@ from kserve_model_platform.network_security import build_network_security_report
 from kserve_model_platform.orchestration_scorecard import build_orchestration_scorecard
 from kserve_model_platform.policy_audit import audit_platform_policy
 from kserve_model_platform.performance_budget import build_performance_budget_report
+from kserve_model_platform.pod_resource_envelopes import build_pod_resource_envelope_plan
 from kserve_model_platform.provisioning_admission import build_provisioning_admission_plan
 from kserve_model_platform.queue_simulator import build_queue_simulation
 from kserve_model_platform.release_admission import build_release_admission_decision, evaluate_release_admission
@@ -594,6 +595,24 @@ class KServeModelServingPlatformTest(unittest.TestCase):
         for expected in ["EVENT_DRIVEN_ASSET_EXPRESSION", "AssetWatcher", "BaseEventTrigger", "shared_stream_key", "AssetAlias"]:
             self.assertIn(expected, dag)
 
+    def test_pod_resource_envelope_plan_and_kubernetes_assets_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        docs = (repo / "docs" / "pod-resource-envelopes.md").read_text(encoding="utf-8")
+        manifest = (repo / "kubernetes" / "pod-resource-envelopes.yaml").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            report = build_pod_resource_envelope_plan(root)
+
+            self.assertTrue(report["passed"])
+            self.assertEqual(report["recommended_action"], "enable_serving_pod_resource_envelopes_and_scheduling_gates")
+            self.assertEqual(report["feature_gates"]["PodSchedulingReadiness"], "stable since Kubernetes 1.30")
+            self.assertTrue(all(workload["scheduling_gates"] for workload in report["workloads"]))
+            self.assertTrue((root / "reports" / "pod_resource_envelope_plan.json").exists())
+        for expected in ["PodLevelResources", "schedulingGates", "scheduler_pending_pods", "PodLevelResourceManagers"]:
+            self.assertIn(expected, docs)
+        for expected in ["schedulingGates", "resources:", "credit-risk-router-canary", "shadow-canary-analysis", "rollback-smoke-probe"]:
+            self.assertIn(expected, manifest)
+
     def test_tenancy_fairness_report_and_kubernetes_assets_exist(self) -> None:
         repo = Path(__file__).resolve().parents[1]
         manifest = (repo / "kubernetes" / "multitenancy-fairness.yaml").read_text(encoding="utf-8")
@@ -643,6 +662,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertIn("kserve_model_cache", names)
             self.assertIn("airflow_dag_bundle_versioning", names)
             self.assertIn("airflow_event_driven_assets", names)
+            self.assertIn("pod_resource_envelopes", names)
             self.assertIn("supply_chain_provenance", names)
             self.assertTrue((root / "reports" / "orchestration_scorecard.json").exists())
 
@@ -695,6 +715,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
                 "model_cache_plan.json",
                 "dag_bundle_versioning_plan.json",
                 "event_driven_assets_plan.json",
+                "pod_resource_envelope_plan.json",
                 "tenancy_fairness_report.json",
                 "identity_access_report.json",
                 "performance_budget.json",
@@ -759,6 +780,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue((root / "reports" / "model_cache_plan.json").exists())
             self.assertTrue((root / "reports" / "dag_bundle_versioning_plan.json").exists())
             self.assertTrue((root / "reports" / "event_driven_assets_plan.json").exists())
+            self.assertTrue((root / "reports" / "pod_resource_envelope_plan.json").exists())
             self.assertTrue((root / "reports" / "tenancy_fairness_report.json").exists())
             self.assertTrue((root / "reports" / "identity_access_report.json").exists())
             self.assertTrue((root / "reports" / "performance_budget.json").exists())

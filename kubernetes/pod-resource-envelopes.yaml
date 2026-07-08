@@ -1,0 +1,126 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: credit-risk-router-canary
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    app.kubernetes.io/component: pod-resource-envelope
+    platform.mlops.dev/gate-owner: serving-release
+spec:
+  schedulingGates:
+    - name: mlops.kevinmei.dev/model-cache-ready
+    - name: mlops.kevinmei.dev/httproute-accepted
+  resources:
+    requests:
+      cpu: "2"
+      memory: 4Gi
+    limits:
+      cpu: "3"
+      memory: 6Gi
+  restartPolicy: Never
+  containers:
+    - name: route-smoke-probe
+      image: ghcr.io/kevinmeix1/kserve-model-serving-platform:2026.07.0
+      command: ["python", "-m", "kserve_model_platform", "release-admission"]
+      resources:
+        requests:
+          cpu: 1200m
+          memory: 2Gi
+        limits:
+          cpu: "2"
+          memory: 4Gi
+    - name: otel-sidecar
+      image: otel/opentelemetry-collector-contrib:0.136.0
+      args: ["--config=/etc/otel/config.yaml"]
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: shadow-canary-analysis
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    app.kubernetes.io/component: pod-resource-envelope
+    platform.mlops.dev/gate-owner: shadow-analysis
+spec:
+  schedulingGates:
+    - name: mlops.kevinmei.dev/kueue-admitted
+    - name: mlops.kevinmei.dev/route-mirror-ready
+  resources:
+    requests:
+      cpu: "4"
+      memory: 8Gi
+    limits:
+      cpu: "6"
+      memory: 12Gi
+  restartPolicy: Never
+  containers:
+    - name: shadow-analyzer
+      image: ghcr.io/kevinmeix1/kserve-model-serving-platform:2026.07.0
+      command: ["python", "-m", "kserve_model_platform", "monitor"]
+      resources:
+        requests:
+          cpu: "3"
+          memory: 6Gi
+        limits:
+          cpu: "4"
+          memory: 8Gi
+    - name: metrics-exporter
+      image: prom/statsd-exporter:v0.28.0
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rollback-smoke-probe
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    app.kubernetes.io/component: pod-resource-envelope
+    platform.mlops.dev/gate-owner: rollback-control
+spec:
+  schedulingGates:
+    - name: mlops.kevinmei.dev/previous-champion-preloaded
+  resources:
+    requests:
+      cpu: "2"
+      memory: 3Gi
+    limits:
+      cpu: "3"
+      memory: 5Gi
+  restartPolicy: Never
+  containers:
+    - name: rollback-probe
+      image: ghcr.io/kevinmeix1/kserve-model-serving-platform:2026.07.0
+      command: ["python", "-m", "kserve_model_platform", "rollback"]
+      resources:
+        requests:
+          cpu: 1200m
+          memory: 2Gi
+        limits:
+          cpu: "2"
+          memory: 4Gi
+    - name: checkpoint-writer
+      image: ghcr.io/kevinmeix1/kserve-model-serving-platform:2026.07.0
+      command: ["python", "-m", "kserve_model_platform", "trace-report"]
+      resources:
+        requests:
+          cpu: 400m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
