@@ -20,6 +20,23 @@ LABELS = {
 }
 
 
+def traffic_chips(value: object) -> str:
+    if not isinstance(value, dict):
+        return esc(value)
+    return "".join(f'<span class="chip">{esc(key)} {esc(amount)}%</span>' for key, amount in sorted(value.items()))
+
+
+def autoscaling_chips(value: object) -> str:
+    if not isinstance(value, dict):
+        return esc(value)
+    labels = {
+        "min_replicas": "min",
+        "max_replicas": "max",
+        "target_concurrency": "target",
+    }
+    return "".join(f'<span class="chip">{labels.get(key, key)} {esc(amount)}</span>' for key, amount in value.items())
+
+
 def rows(items: list[dict], columns: list[str]) -> str:
     if not items:
         return f"<tr><td colspan='{len(columns)}'>No records</td></tr>"
@@ -90,6 +107,7 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
         .metric .badge {{ width: auto; max-width: max-content; }}
         .pass {{ color: #166534; background: #dcfce7; }}
         .fail {{ color: #991b1b; background: #fee2e2; }}
+        .chip {{ display: inline-block; margin: 0 5px 5px 0; padding: 4px 8px; border-radius: 999px; background: #ecfeff; color: #0e7490; font-size: 12px; font-weight: 800; white-space: nowrap; }}
         .summary {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }}
         .summary div {{ border: 1px solid #e3e9f0; border-radius: 6px; padding: 12px; min-height: 74px; }}
         .summary span {{ display: block; color: #64748b; font-size: 12px; margin-bottom: 8px; }}
@@ -119,7 +137,7 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
               <h2>KServe Deployment</h2>
               <table>
                 <tr><th>Service</th><th>Namespace</th><th>Runtime</th><th>Traffic</th><th>Autoscaling</th></tr>
-                <tr><td>{esc(deployment.get('service_name'))}</td><td>{esc(deployment.get('namespace'))}</td><td>{esc(deployment.get('runtime'))}</td><td>{esc(deployment.get('traffic'))}</td><td>{esc(deployment.get('autoscaling'))}</td></tr>
+                <tr><td>{esc(deployment.get('service_name'))}</td><td>{esc(deployment.get('namespace'))}</td><td>{esc(deployment.get('runtime'))}</td><td>{traffic_chips(deployment.get('traffic'))}</td><td>{autoscaling_chips(deployment.get('autoscaling'))}</td></tr>
               </table>
             </div>
             <div class="panel">
@@ -134,7 +152,7 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
                 <div><span>Recommended action</span><strong>{esc(rollout_plan.get('recommended_action', 'not planned'))}</strong></div>
                 <div><span>Next canary percent</span><strong>{esc(rollout_plan.get('next_percent', 'n/a'))}</strong></div>
                 <div><span>Error upper bound</span><strong>{esc(rollout_analysis.get('error_upper_bound', 'n/a'))}</strong></div>
-                <div><span>Gateway weights</span><strong>{esc(rollout_plan.get('gateway_weights', {}))}</strong></div>
+                <div><span>Gateway weights</span><strong>{traffic_chips(rollout_plan.get('gateway_weights', {}))}</strong></div>
               </div>
             </div>
             <div class="panel">

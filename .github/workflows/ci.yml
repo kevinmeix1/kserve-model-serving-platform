@@ -44,6 +44,7 @@ jobs:
             echo "- Supply-chain evidence: .local/reports/supply_chain_evidence.json"
             echo "- Orchestration scorecard: .local/reports/orchestration_scorecard.json"
             echo "- Accelerator capacity plan: .local/reports/accelerator_capacity_plan.json"
+            echo "- Tenant fairness: .local/reports/tenancy_fairness_report.json"
             echo "- Performance budget: .local/reports/performance_budget.json"
             echo "- Queue simulation: .local/reports/queue_simulation.json"
             echo "- Release admission: .local/reports/release_admission_decision.json"

@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlops-serving-prod
+  labels:
+    platform.mlops.dev/tenant: online-serving
+    platform.mlops.dev/cost-center: risk-platform
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: online-serving-quota
+  namespace: mlops-serving-prod
+spec:
+  hard:
+    requests.cpu: "20"
+    requests.memory: 80Gi
+    services: "20"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: online-serving-limits
+  namespace: mlops-serving-prod
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 250m
+        memory: 512Mi
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: online-serving-edit
+  namespace: mlops-serving-prod
+subjects:
+  - kind: Group
+    name: risk-serving-team
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-default-deny
+  namespace: mlops-serving-prod
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: Cohort
+metadata:
+  name: mlops-serving-cohort
+spec:
+  fairSharing:
+    weight: 1
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: credit-risk-serving-tenant-queue
+spec:
+  cohort: mlops-serving-cohort
+  namespaceSelector:
+    matchLabels:
+      platform.mlops.dev/tenant: online-serving
+  preemption:
+    withinClusterQueue: LowerPriority
+    reclaimWithinCohort: Any
+  resourceGroups:
+    - coveredResources: ["cpu", "memory"]
+      flavors:
+        - name: cpu-spot
+          resources:
+            - name: cpu
+              nominalQuota: 20
+              borrowingLimit: 6
+            - name: memory
+              nominalQuota: 80Gi
+              borrowingLimit: 16Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airflow-tenant-pools
+  namespace: mlops-serving-prod
+data:
+  pools.json: |
+    {"online-serving": 8, "canary-analysis": 4, "load-test": 2}
