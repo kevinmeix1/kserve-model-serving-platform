@@ -45,6 +45,7 @@ jobs:
             echo "- Orchestration scorecard: .local/reports/orchestration_scorecard.json"
             echo "- Accelerator capacity plan: .local/reports/accelerator_capacity_plan.json"
             echo "- Device allocation plan: .local/reports/device_allocation_plan.json"
+            echo "- DRA resource health status: .local/reports/resource_health_status_plan.json"
             echo "- Topology placement plan: .local/reports/topology_placement_plan.json"
             echo "- KubeRay capacity plan: .local/reports/kuberay_capacity_plan.json"
             echo "- Inference gateway plan: .local/reports/inference_gateway_plan.json"

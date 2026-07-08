@@ -1,0 +1,74 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kserve-dra-resource-health-reader
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["resource.k8s.io"]
+    resources: ["resourceclaims"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kserve-dra-resource-health-reader
+subjects:
+  - kind: ServiceAccount
+    name: canary-analysis-runner
+    namespace: mlops-serving-analysis
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kserve-dra-resource-health-reader
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kserve-dra-resource-health-queries
+  namespace: mlops-serving
+data:
+  challenger-pod-allocated-resources-status: "kubectl get pod credit-risk-challenger-dra-0 -n mlops-serving -o jsonpath='{.status.containerStatuses[*].allocatedResourcesStatus}'"
+  challenger-resourceclaim-device-status: "kubectl get resourceclaim l4-shared-challenger-claim -n mlops-serving -o jsonpath='{.status.devices}'"
+  shadow-pod-allocated-resources-status: "kubectl get pod shadow-analysis-runner-1 -n mlops-serving-analysis -o jsonpath='{.status.containerStatuses[*].allocatedResourcesStatus}'"
+  podresources-cross-check: "scrape kubelet PodResourcesLister DynamicResource claim_name, device_name, and resource_name for predictor and shadow-analysis pods"
+  rollback-policy: "hold or roll back KServe challenger traffic when DRA health is Unhealthy or Unknown"
+---
+apiVersion: resource.k8s.io/v1beta2
+kind: DeviceTaintRule
+metadata:
+  name: quarantine-unhealthy-serving-l4-device
+spec:
+  deviceSelector:
+    driver: gpu.resource.kubernetes.io
+    deviceClassName: gpu-l4-shared
+  taint:
+    key: gpu.resource.kubernetes.io/unhealthy
+    value: ResourceHealthStatus
+    effect: NoSchedule
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kserve-dra-resource-health-status
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: kserve.dra.resource.health
+      rules:
+        - alert: KServeDRAResourceHealthUnhealthy
+          expr: kube_pod_container_status_allocated_resources_health{namespace=~"mlops-serving|mlops-serving-analysis",health=~"Unhealthy|Unknown"} > 0
+          for: 2m
+          labels:
+            severity: critical
+            traffic_action: hold_or_rollback_challenger
+          annotations:
+            summary: "A KServe challenger or shadow-analysis DRA device is unhealthy or unknown"
+        - alert: KServeDRAResourceClaimDeviceStatusMissing
+          expr: kube_resourceclaim_status_devices{namespace=~"mlops-serving|mlops-serving-analysis"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ResourceClaim status.devices is missing for a DRA-backed KServe release workload"

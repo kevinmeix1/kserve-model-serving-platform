@@ -40,6 +40,7 @@ from .queue_simulator import build_queue_simulation
 from .release_admission import build_release_admission_decision
 from .registry import aliases as registry_aliases
 from .registry import promote_challenger, rollback as rollback_registry, seed_registry
+from .resource_health_status import build_resource_health_status_plan
 from .resource_optimizer import build_resource_optimization_report
 from .rollout_control import build_rollout_plan
 from .serving import deploy as deploy_kserve
@@ -171,6 +172,7 @@ def demo(output: str | Path) -> dict:
         primary_workload="online inference, shadow scoring, and canary analysis",
     )
     device_allocation = build_device_allocation_plan(root)
+    resource_health_status = build_resource_health_status_plan(root)
     topology_placement = build_topology_placement_plan(root)
     kuberay_capacity = build_kuberay_capacity_plan(root)
     inference_gateway = build_inference_gateway_plan(root)
@@ -225,6 +227,7 @@ def demo(output: str | Path) -> dict:
         "cloud_migration": cloud_migration,
         "accelerator_capacity": accelerator_capacity,
         "device_allocation": device_allocation,
+        "resource_health_status": resource_health_status,
         "topology_placement": topology_placement,
         "kuberay_capacity": kuberay_capacity,
         "inference_gateway": inference_gateway,
@@ -282,6 +285,7 @@ def main(argv: list[str] | None = None) -> int:
         "orchestration-scorecard",
         "accelerator-plan",
         "device-plan",
+        "resource-health-status",
         "topology-plan",
         "kuberay-plan",
         "inference-gateway-plan",
@@ -356,6 +360,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_accelerator_capacity_plan(args.output, project="KServe Model Serving Platform", primary_workload="online inference, shadow scoring, and canary analysis"), indent=2, sort_keys=True))
     elif args.command == "device-plan":
         print(json.dumps(build_device_allocation_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "resource-health-status":
+        print(json.dumps(build_resource_health_status_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "topology-plan":
         print(json.dumps(build_topology_placement_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "kuberay-plan":
