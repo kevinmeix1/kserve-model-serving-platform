@@ -17,6 +17,7 @@ from .disaster_recovery import build_disaster_recovery_plan
 from .device_allocation import build_device_allocation_plan
 from .elastic_workload import build_elastic_workload_plan
 from .event_driven_assets import build_event_driven_assets_plan
+from .flavor_fungibility import build_flavor_fungibility_plan
 from .gitops_release import build_gitops_plan
 from .governance import build_governance_bundle
 from .identity import build_identity_access_report
@@ -184,6 +185,7 @@ def demo(output: str | Path) -> dict:
     event_driven_assets = build_event_driven_assets_plan(root)
     pod_resource_envelopes = build_pod_resource_envelope_plan(root)
     cohort_fair_sharing = build_cohort_fair_sharing_plan(root)
+    flavor_fungibility = build_flavor_fungibility_plan(root)
     tenancy = build_tenancy_report(root)
     identity_access = build_identity_access_report(root)
     performance_budget = build_performance_budget_report(root)
@@ -236,6 +238,7 @@ def demo(output: str | Path) -> dict:
         "event_driven_assets": event_driven_assets,
         "pod_resource_envelopes": pod_resource_envelopes,
         "cohort_fair_sharing": cohort_fair_sharing,
+        "flavor_fungibility": flavor_fungibility,
         "tenancy": tenancy,
         "identity_access": identity_access,
         "performance_budget": performance_budget,
@@ -291,6 +294,7 @@ def main(argv: list[str] | None = None) -> int:
         "event-driven-assets",
         "pod-resource-envelopes",
         "cohort-fair-sharing",
+        "flavor-fungibility",
         "tenancy-report",
         "identity-report",
         "performance-budget",
@@ -378,6 +382,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_pod_resource_envelope_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "cohort-fair-sharing":
         print(json.dumps(build_cohort_fair_sharing_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "flavor-fungibility":
+        print(json.dumps(build_flavor_fungibility_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "tenancy-report":
         print(json.dumps(build_tenancy_report(args.output), indent=2, sort_keys=True))
     elif args.command == "identity-report":
