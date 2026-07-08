@@ -121,6 +121,8 @@ For Kueue Workload Slices, JobSet shadow analysis, replacement slices, GPU expla
 
 For Kubernetes Indexed Jobs, per-index retry budgets, `successPolicy`, `podFailurePolicy`, and Airflow 3 failed-only rollout recovery, see [indexed job resilience](docs/indexed-job-resilience.md).
 
+For Kueue ProvisioningRequest admission checks that gate shadow analysis, rollback smoke tests, and GPU explainers without queuing online predictors, see [provisioning admission](docs/provisioning-admission.md).
+
 For model-aware routing with Gateway API Inference Extension, stable `InferencePool`, Endpoint Picker fallback, and priority objectives, see [Gateway API Inference Extension](docs/inference-gateway.md).
 
 For portable OpenTelemetry attributes, GenAI token/cost fields, Kubernetes correlation, and telemetry redaction guardrails, see [semantic telemetry](docs/semantic-telemetry.md).

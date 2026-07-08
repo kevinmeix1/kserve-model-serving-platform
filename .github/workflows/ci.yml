@@ -53,6 +53,7 @@ jobs:
             echo "- Cost observability: .local/reports/cost_observability_report.json"
             echo "- Elastic workload plan: .local/reports/elastic_workload_plan.json"
             echo "- Indexed job resilience: .local/reports/indexed_job_resilience_plan.json"
+            echo "- Provisioning admission: .local/reports/provisioning_admission_plan.json"
             echo "- Tenant fairness: .local/reports/tenancy_fairness_report.json"
             echo "- Workload identity: .local/reports/identity_access_report.json"
             echo "- Performance budget: .local/reports/performance_budget.json"

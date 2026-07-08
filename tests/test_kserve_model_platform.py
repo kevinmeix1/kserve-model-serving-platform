@@ -26,6 +26,7 @@ from kserve_model_platform.network_security import build_network_security_report
 from kserve_model_platform.orchestration_scorecard import build_orchestration_scorecard
 from kserve_model_platform.policy_audit import audit_platform_policy
 from kserve_model_platform.performance_budget import build_performance_budget_report
+from kserve_model_platform.provisioning_admission import build_provisioning_admission_plan
 from kserve_model_platform.queue_simulator import build_queue_simulation
 from kserve_model_platform.release_admission import build_release_admission_decision, evaluate_release_admission
 from kserve_model_platform.registry import aliases
@@ -315,7 +316,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
 
         for expected in ["actions/upload-artifact@v6", "actions/attest@v4", "attestations: write", "GITHUB_STEP_SUMMARY", "make ci-verify", "concurrency"]:
             self.assertIn(expected, workflow)
-        for expected in ["ci-verify:", "index.html", "tenancy_fairness_report.json", "identity_access_report.json", "indexed_job_resilience_plan.json", "elastic_workload_plan.json", "cost_observability_report.json", "deadline_alert_plan.json", "semantic_telemetry_plan.json", "inference_gateway_plan.json", "kuberay_capacity_plan.json", "topology_placement_plan.json", "device_allocation_plan.json", "release_admission_decision.json", "queue_simulation.json", "performance_budget.json", "accelerator_capacity_plan.json", "orchestration_scorecard.json", "supply_chain_evidence.json", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
+        for expected in ["ci-verify:", "index.html", "tenancy_fairness_report.json", "identity_access_report.json", "provisioning_admission_plan.json", "indexed_job_resilience_plan.json", "elastic_workload_plan.json", "cost_observability_report.json", "deadline_alert_plan.json", "semantic_telemetry_plan.json", "inference_gateway_plan.json", "kuberay_capacity_plan.json", "topology_placement_plan.json", "device_allocation_plan.json", "release_admission_decision.json", "queue_simulation.json", "performance_budget.json", "accelerator_capacity_plan.json", "orchestration_scorecard.json", "supply_chain_evidence.json", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
             self.assertIn(expected, makefile)
 
     def test_accelerator_capacity_plan_and_kubernetes_assets_exist(self) -> None:
@@ -490,6 +491,24 @@ class KServeModelServingPlatformTest(unittest.TestCase):
         for expected in ["Indexed Job Resilience", "Airflow Backfill Create", "successPolicy", "podFailurePolicy", "backoffLimitPerIndex"]:
             self.assertIn(expected, docs)
 
+    def test_provisioning_admission_plan_and_kubernetes_assets_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        manifest = (repo / "kubernetes" / "provisioning-admission-checks.yaml").read_text(encoding="utf-8")
+        docs = (repo / "docs" / "provisioning-admission.md").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            report = build_provisioning_admission_plan(root)
+
+            self.assertTrue(report["passed"])
+            self.assertEqual(report["recommended_action"], "enable_kueue_provisioning_admission_for_serving_analysis")
+            self.assertEqual(report["serving_boundary"]["online_predictor_queueing"], "excluded")
+            self.assertTrue(any(check["name"] == "rollback_capacity_protected" for check in report["checks"]))
+            self.assertTrue((root / "reports" / "provisioning_admission_plan.json").exists())
+        for expected in ["AdmissionCheck", "ProvisioningRequestConfig", "kueue.x-k8s.io/provisioning-request", "admissionChecksStrategy", "check-capacity.autoscaling.x-k8s.io", "podSetUpdates", "KServeProvisioningAdmissionPendingTooLong"]:
+            self.assertIn(expected, manifest)
+        for expected in ["Kueue Provisioning Admission", "InferenceService", "ProvisioningRequest", "online serving"]:
+            self.assertIn(expected, docs)
+
     def test_tenancy_fairness_report_and_kubernetes_assets_exist(self) -> None:
         repo = Path(__file__).resolve().parents[1]
         manifest = (repo / "kubernetes" / "multitenancy-fairness.yaml").read_text(encoding="utf-8")
@@ -534,6 +553,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertIn("opencost_finops", names)
             self.assertIn("kueue_elastic_workloads", names)
             self.assertIn("indexed_job_resilience", names)
+            self.assertIn("provisioning_admission_checks", names)
             self.assertIn("supply_chain_provenance", names)
             self.assertTrue((root / "reports" / "orchestration_scorecard.json").exists())
 
@@ -581,6 +601,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
                 "cost_observability_report.json",
                 "elastic_workload_plan.json",
                 "indexed_job_resilience_plan.json",
+                "provisioning_admission_plan.json",
                 "tenancy_fairness_report.json",
                 "identity_access_report.json",
                 "performance_budget.json",

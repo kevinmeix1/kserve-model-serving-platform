@@ -1,0 +1,247 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: serving-provisioning-admission-runbook
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    platform.openai.com/component: provisioning-admission
+data:
+  servingBoundary: "InferenceService predictor pods stay outside batch provisioning admission; only analysis, replay, rollback smoke, and explainer jobs are queued."
+  promotionPolicy: "Failed ProvisioningRequest freezes canary promotion and preserves the champion route."
+  fallbackPolicy: "Retry twice, then route to serving-analysis-queue with lower parallelism and CPU-only explainers."
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: cpu-analysis-provisioned
+spec:
+  nodeLabels:
+    workload-class: serving-analysis
+    capacity.mlops.dev/provisioned: "true"
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: gpu-l4-explainer-provisioned
+spec:
+  nodeLabels:
+    accelerator: nvidia-l4
+    workload-class: serving-analysis
+    capacity.mlops.dev/provisioned: "true"
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata:
+  name: serving-analysis-provisioned-queue
+spec:
+  namespaceSelector: {}
+  queueingStrategy: BestEffortFIFO
+  resourceGroups:
+    - coveredResources: ["cpu", "memory"]
+      flavors:
+        - name: cpu-analysis-provisioned
+          resources:
+            - name: cpu
+              nominalQuota: 48
+              borrowingLimit: 16
+            - name: memory
+              nominalQuota: 192Gi
+              borrowingLimit: 64Gi
+  admissionChecksStrategy:
+    admissionChecks:
+      - name: serving-analysis-provisioning-capacity
+        onFlavors: ["cpu-analysis-provisioned"]
+  preemption:
+    withinClusterQueue: LowerPriority
+    reclaimWithinCohort: Any
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata:
+  name: serving-gpu-provisioned-queue
+spec:
+  namespaceSelector: {}
+  queueingStrategy: BestEffortFIFO
+  resourceGroups:
+    - coveredResources: ["cpu", "memory", "nvidia.com/gpu"]
+      flavors:
+        - name: gpu-l4-explainer-provisioned
+          resources:
+            - name: cpu
+              nominalQuota: 32
+            - name: memory
+              nominalQuota: 128Gi
+            - name: nvidia.com/gpu
+              nominalQuota: 4
+  admissionChecksStrategy:
+    admissionChecks:
+      - name: serving-analysis-provisioning-capacity
+        onFlavors: ["gpu-l4-explainer-provisioned"]
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: LocalQueue
+metadata:
+  name: serving-analysis-provisioned-queue
+  namespace: mlops-serving
+spec:
+  clusterQueue: serving-analysis-provisioned-queue
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: LocalQueue
+metadata:
+  name: serving-gpu-provisioned-queue
+  namespace: mlops-serving
+spec:
+  clusterQueue: serving-gpu-provisioned-queue
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: AdmissionCheck
+metadata:
+  name: serving-analysis-provisioning-capacity
+spec:
+  controllerName: kueue.x-k8s.io/provisioning-request
+  parameters:
+    apiGroup: kueue.x-k8s.io
+    kind: ProvisioningRequestConfig
+    name: serving-analysis-provisioning-config
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ProvisioningRequestConfig
+metadata:
+  name: serving-analysis-provisioning-config
+spec:
+  provisioningClassName: check-capacity.autoscaling.x-k8s.io
+  managedResources:
+    - cpu
+    - memory
+    - nvidia.com/gpu
+  retryStrategy:
+    backoffLimitCount: 2
+    backoffBaseSeconds: 60
+    backoffMaxSeconds: 1800
+  podSetMergePolicy: IdenticalWorkloadSchedulingRequirements
+  podSetUpdates:
+    nodeSelector:
+      - key: autoscaling.cloud-provider.com/provisioning-request
+        valueFromProvisioningClassDetail: RequestKey
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: credit-risk-provisioned-analysis-
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    app.kubernetes.io/component: provisioned-serving-analysis
+    kueue.x-k8s.io/queue-name: serving-analysis-provisioned-queue
+    serving.mlops.dev/release-gate: canary-analysis
+  annotations:
+    provreq.kueue.x-k8s.io/maxRunDurationSeconds: "3600"
+    provreq.kueue.x-k8s.io/ValidUntilSeconds: "900"
+spec:
+  parallelism: 6
+  completions: 12
+  completionMode: Indexed
+  backoffLimitPerIndex: 1
+  maxFailedIndexes: 2
+  template:
+    spec:
+      serviceAccountName: canary-analysis-runner
+      restartPolicy: Never
+      containers:
+        - name: serving-analysis-shard
+          image: ghcr.io/kevinmeix1/kserve-model-serving-platform:latest
+          command: ["python", "-m", "kserve_model_platform", "monitor", "--output", "/workspace"]
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: credit-risk-gpu-explainer-
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    app.kubernetes.io/component: provisioned-gpu-explainer
+    kueue.x-k8s.io/queue-name: serving-gpu-provisioned-queue
+  annotations:
+    provreq.kueue.x-k8s.io/maxRunDurationSeconds: "5400"
+    provreq.kueue.x-k8s.io/ValidUntilSeconds: "1200"
+spec:
+  parallelism: 2
+  completions: 4
+  completionMode: Indexed
+  template:
+    spec:
+      serviceAccountName: canary-analysis-runner
+      restartPolicy: Never
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+      containers:
+        - name: gpu-explainer
+          image: ghcr.io/kevinmeix1/kserve-model-serving-platform:latest
+          command: ["python", "-m", "kserve_model_platform", "trace-report", "--output", "/workspace"]
+          resources:
+            requests:
+              cpu: "4"
+              memory: 8Gi
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "8"
+              memory: 16Gi
+              nvidia.com/gpu: "1"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: serving-provisioning-admission-alerts
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    prometheus: platform
+spec:
+  groups:
+    - name: kserve.provisioning-admission
+      rules:
+        - alert: KServeProvisioningAdmissionPendingTooLong
+          expr: max_over_time(kueue_admission_check_state{namespace="mlops-serving",admission_check="serving-analysis-provisioning-capacity",state="Pending"}[15m]) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: KServe analysis ProvisioningRequest is pending longer than the rollout SLO.
+            runbook: "Freeze canary promotion, inspect ProvisioningRequest status, and protect champion route capacity."
+        - alert: KServeProvisioningRequestRetriesExhausted
+          expr: increase(kueue_provisioning_request_retries_total{namespace="mlops-serving",admission_check="serving-analysis-provisioning-capacity"}[30m]) >= 2
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: KServe analysis ProvisioningRequest exhausted retry budget.
+            runbook: "Route analysis to smaller fallback queues and keep the challenger below promotion threshold."
+        - alert: KServeProvisioningBookingExpired
+          expr: kueue_provisioning_request_condition{namespace="mlops-serving",condition="BookingExpired",status="true"} > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Provisioned serving-analysis capacity booking expired before analysis consumed it.
+            runbook: "Run rollback smoke first, then resume the shadow-analysis wave."
