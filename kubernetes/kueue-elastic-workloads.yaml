@@ -1,0 +1,176 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kueue-elastic-serving-rollout
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    platform.openai.com/component: elastic-workloads
+data:
+  featureGate: ElasticJobsViaWorkloadSlices
+  onlineServingBoundary: "KServe predictor and router replicas remain outside elastic batch admission."
+  rollbackPolicy: "Use replacement Workload Slices to shrink shadow analysis before rollback validation loses quota."
+---
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: credit-risk-shadow-analysis
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    kueue.x-k8s.io/queue-name: serving-analysis-queue
+  annotations:
+    kueue.x-k8s.io/workload-slice-name: credit-risk-shadow-slice-a
+    kueue.x-k8s.io/elastic-job: "true"
+spec:
+  replicatedJobs:
+    - name: segment-evaluator
+      replicas: 8
+      template:
+        spec:
+          completions: 1
+          parallelism: 1
+          backoffLimit: 2
+          template:
+            metadata:
+              labels:
+                app.kubernetes.io/component: shadow-analysis
+                traffic-class: shadow
+            spec:
+              restartPolicy: Never
+              serviceAccountName: canary-analysis-runner
+              containers:
+                - name: evaluator
+                  image: ghcr.io/kevinmeix1/kserve-model-serving-platform:latest
+                  args:
+                    - python
+                    - -m
+                    - kserve_model_platform
+                    - monitor
+                  resources:
+                    requests:
+                      cpu: "500m"
+                      memory: 512Mi
+                    limits:
+                      cpu: "1"
+                      memory: 1Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: credit-risk-shadow-replacement-smoke
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    kueue.x-k8s.io/queue-name: serving-analysis-queue
+  annotations:
+    kueue.x-k8s.io/workload-slice-name: credit-risk-shadow-slice-b
+    kueue.x-k8s.io/workload-slice-replacement-for: mlops-serving/credit-risk-shadow-slice-a
+    kueue.x-k8s.io/elastic-job: "true"
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: rollback-validation
+    spec:
+      restartPolicy: Never
+      serviceAccountName: canary-analysis-runner
+      containers:
+        - name: rollback-smoke
+          image: ghcr.io/kevinmeix1/kserve-model-serving-platform:latest
+          args:
+            - python
+            - -m
+            - kserve_model_platform
+            - rollback
+          resources:
+            requests:
+              cpu: "750m"
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+---
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: credit-risk-gpu-explainer
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    kueue.x-k8s.io/queue-name: serving-gpu-analysis-queue
+  annotations:
+    kueue.x-k8s.io/workload-slice-name: credit-risk-explainer-slice-a
+    kueue.x-k8s.io/elastic-job: "true"
+spec:
+  replicatedJobs:
+    - name: gpu-explainer
+      replicas: 4
+      template:
+        spec:
+          completions: 1
+          parallelism: 1
+          backoffLimit: 1
+          template:
+            metadata:
+              labels:
+                app.kubernetes.io/component: gpu-explainer
+                traffic-class: incident-analysis
+            spec:
+              restartPolicy: Never
+              serviceAccountName: canary-analysis-runner
+              containers:
+                - name: explainer
+                  image: ghcr.io/kevinmeix1/kserve-model-serving-platform:latest
+                  args:
+                    - python
+                    - -m
+                    - kserve_model_platform
+                    - trace-report
+                  resources:
+                    requests:
+                      cpu: "1"
+                      memory: 2Gi
+                      nvidia.com/gpu: "1"
+                    limits:
+                      cpu: "2"
+                      memory: 4Gi
+                      nvidia.com/gpu: "1"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kserve-elastic-workload-alerts
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    prometheus: platform
+spec:
+  groups:
+    - name: kserve.elastic-workloads
+      rules:
+        - alert: KServeElasticWorkloadSlicePending
+          expr: sum(kueue_pending_workloads{namespace="mlops-serving",queue=~"serving-.*"}) by (queue) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Elastic serving analysis Workload Slice is pending.
+            runbook: "Check Kueue ClusterQueue quota before increasing canary analysis fanout."
+        - alert: KServeElasticReplacementSliceLag
+          expr: sum(kueue_admitted_workloads{namespace="mlops-serving",workload=~".*shadow.*"}) < 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Replacement Workload Slice is not reclaiming shadow-analysis quota.
+            runbook: "Pause shadow analysis and reserve rollback validation capacity."
+        - alert: KServeElasticJobSetReplicaLag
+          expr: sum(jobset_replicatedjob_replicas_ready{namespace="mlops-serving",jobset=~"credit-risk-.*"}) < 2
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Elastic JobSet replicas are below serving analysis target.
+            runbook: "Inspect JobSet pods, image pull errors, and Kueue admission events."
