@@ -1,0 +1,196 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: credit-risk-inference-gateway
+  namespace: mlops-serving
+spec:
+  gatewayClassName: istio
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: credit-risk-inference-route
+  namespace: mlops-serving
+spec:
+  parentRefs:
+    - name: credit-risk-inference-gateway
+      sectionName: http
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/chat/completions
+      backendRefs:
+        - group: inference.networking.k8s.io
+          kind: InferencePool
+          name: credit-risk-inference-pool
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: credit-risk-model-server
+  namespace: mlops-serving
+  labels:
+    app: credit-risk-model-server
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: credit-risk-model-server
+  template:
+    metadata:
+      labels:
+        app: credit-risk-model-server
+        serving.kserve.io/model: credit-risk
+    spec:
+      containers:
+        - name: vllm-sim
+          image: ghcr.io/llm-d/llm-d-inference-sim@sha256:replace-with-approved-digest
+          args:
+            - --model
+            - credit-risk-llm
+            - --port
+            - "8000"
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          resources:
+            requests:
+              cpu: "500m"
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: credit-risk-endpoint-picker
+  namespace: mlops-serving
+  labels:
+    app: credit-risk-epp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: credit-risk-epp
+  template:
+    metadata:
+      labels:
+        app: credit-risk-epp
+    spec:
+      containers:
+        - name: epp
+          image: registry.k8s.io/gateway-api-inference-extension/epp@sha256:replace-with-approved-digest
+          args:
+            - --pool-name
+            - credit-risk-inference-pool
+            - --pool-namespace
+            - mlops-serving
+          ports:
+            - name: ext-proc
+              containerPort: 9002
+            - name: grpc-health
+              containerPort: 9003
+            - name: metrics
+              containerPort: 9090
+          readinessProbe:
+            grpc:
+              port: 9003
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "250m"
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: credit-risk-endpoint-picker
+  namespace: mlops-serving
+spec:
+  selector:
+    app: credit-risk-epp
+  ports:
+    - name: ext-proc
+      protocol: TCP
+      port: 9002
+      targetPort: 9002
+      appProtocol: http2
+---
+apiVersion: inference.networking.k8s.io/v1
+kind: InferencePool
+metadata:
+  name: credit-risk-inference-pool
+  namespace: mlops-serving
+spec:
+  targetPorts:
+    - number: 8000
+  selector:
+    app: credit-risk-model-server
+  endpointPickerRef:
+    name: credit-risk-endpoint-picker
+    port:
+      number: 9002
+    failureMode: FailOpen
+---
+apiVersion: inference.networking.x-k8s.io/v1alpha2
+kind: InferenceObjective
+metadata:
+  name: credit-risk-online
+  namespace: mlops-serving
+spec:
+  priority: 20
+  poolRef:
+    group: inference.networking.k8s.io
+    kind: InferencePool
+    name: credit-risk-inference-pool
+---
+apiVersion: inference.networking.x-k8s.io/v1alpha2
+kind: InferenceObjective
+metadata:
+  name: credit-risk-batch
+  namespace: mlops-serving
+spec:
+  priority: -5
+  poolRef:
+    group: inference.networking.k8s.io
+    kind: InferencePool
+    name: credit-risk-inference-pool
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: inference-gateway-routing
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: inference.gateway.routing
+      rules:
+        - alert: CreditRiskEndpointPickerUnavailable
+          expr: up{job="credit-risk-endpoint-picker"} == 0
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Endpoint picker is unavailable; InferencePool should fail open to HTTPRoute fallback."

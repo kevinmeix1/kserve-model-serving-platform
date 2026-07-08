@@ -55,6 +55,7 @@ def build_orchestration_scorecard(
         ("pools_priority_retries", _present(content, "pool=") and _present(content, "priority_weight"), "Airflow pools and priority weights protect scarce capacity"),
         ("kueue_admission", _present(content, "ClusterQueue", "kueue.x-k8s.io"), "Kueue queues gate batch and release work"),
         ("kuberay_elastic_jobs", _present(content, "RayJob", "RayService", "RayCluster") and _present(content, "enableInTreeAutoscaling", "elastic-job"), "KubeRay workloads scale serving transforms and canary analysis inside Kueue admission"),
+        ("inference_gateway_extension", _present(content, "InferencePool", "endpointPickerRef") and _present(content, "InferenceObjective", "inference.networking.k8s.io/v1"), "Gateway API Inference Extension adds model-aware endpoint picking"),
         ("event_driven_scaling", _present(content, "ScaledObject", "ScaledJob"), "KEDA ScaledObjects or ScaledJobs react to operational backlog"),
         ("horizontal_autoscaling", "HorizontalPodAutoscaler" in content, "HPA rules keep workers and services elastic"),
         ("opentelemetry", _present(content, "opentelemetry-collector", "OpenTelemetry"), "OTel collector config captures runtime traces and metrics"),
@@ -81,6 +82,7 @@ def build_orchestration_scorecard(
             "OpenLineage provider patterns for Airflow DAG lineage and inter-DAG visibility",
             "Kueue, KEDA, and HPA for Kubernetes admission control and adaptive capacity",
             "KubeRay with Kueue for elastic serving transforms and distributed canary analysis",
+            "Gateway API Inference Extension for model-aware routing and endpoint picker fallback",
             "GitHub artifact attestations, SLSA provenance, and Sigstore policy-controller for supply-chain integrity",
         ],
         "next_actions": [

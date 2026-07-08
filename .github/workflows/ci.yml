@@ -47,6 +47,7 @@ jobs:
             echo "- Device allocation plan: .local/reports/device_allocation_plan.json"
             echo "- Topology placement plan: .local/reports/topology_placement_plan.json"
             echo "- KubeRay capacity plan: .local/reports/kuberay_capacity_plan.json"
+            echo "- Inference gateway plan: .local/reports/inference_gateway_plan.json"
             echo "- Tenant fairness: .local/reports/tenancy_fairness_report.json"
             echo "- Workload identity: .local/reports/identity_access_report.json"
             echo "- Performance budget: .local/reports/performance_budget.json"
