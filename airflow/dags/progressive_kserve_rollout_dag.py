@@ -123,12 +123,27 @@ if AIRFLOW_AVAILABLE:
                 "kubectl get httproute credit-risk-weighted-route -n mlops-serving -o yaml",
                 priority_weight=4,
             )
+            submit_rayservice_transform = kserve_pod(
+                "submit_kuberay_rayservice_transform",
+                "kubectl apply -f kubernetes/kuberay-kueue-workloads.yaml",
+                priority_weight=4,
+            )
+            wait_for_rayservice_ready = kserve_pod(
+                "wait_for_kuberay_rayservice_ready_deferrable",
+                "kubectl wait --for=condition=Ready rayservice/credit-risk-rayservice -n mlops-serving --timeout=15m",
+                priority_weight=4,
+            )
+            wait_for_shadow_evaluator = kserve_pod(
+                "wait_for_shadow_canary_evaluator_deferrable",
+                "kubectl wait --for=condition=Complete rayjob/shadow-canary-evaluator -n mlops-serving --timeout=15m",
+                priority_weight=5,
+            )
             wait_for_route_convergence = kserve_pod(
                 "wait_for_route_convergence_deferrable",
                 "kubectl wait --for=condition=Accepted httproute/credit-risk-weighted-route -n mlops-serving --timeout=5m",
                 priority_weight=5,
             )
-            reserve_canary_quota >> validate_gateway_weights >> wait_for_route_convergence
+            reserve_canary_quota >> validate_gateway_weights >> submit_rayservice_transform >> wait_for_rayservice_ready >> wait_for_shadow_evaluator >> wait_for_route_convergence
             return wait_for_route_convergence
 
         @task

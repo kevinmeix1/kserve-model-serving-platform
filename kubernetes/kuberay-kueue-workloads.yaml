@@ -1,0 +1,147 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: credit-risk-ray-serve
+  namespace: mlops-serving
+data:
+  serve_app.py: |
+    from ray import serve
+
+    @serve.deployment(num_replicas=2)
+    class FeatureTransformer:
+        async def __call__(self, request):
+            return {"features": "validated", "explanations": ["utilization", "delinquencies"]}
+
+    app = FeatureTransformer.bind()
+---
+apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: credit-risk-rayservice
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/component: kuberay-serving-transform
+    kueue.x-k8s.io/queue-name: credit-risk-serving-queue
+  annotations:
+    kueue.x-k8s.io/elastic-job: "true"
+spec:
+  serveConfigV2: |
+    applications:
+      - name: credit-risk-transformer
+        import_path: serve_app:app
+        route_prefix: /transform
+        runtime_env:
+          working_dir: /home/ray/serve
+  rayClusterConfig:
+    enableInTreeAutoscaling: true
+    headGroupSpec:
+      rayStartParams:
+        dashboard-host: 0.0.0.0
+      template:
+        spec:
+          containers:
+            - name: ray-head
+              image: rayproject/ray@sha256:replace-with-approved-digest
+              ports:
+                - containerPort: 8265
+                  name: dashboard
+                - containerPort: 8000
+                  name: serve
+              resources:
+                requests:
+                  cpu: "1"
+                  memory: 2Gi
+                limits:
+                  cpu: "2"
+                  memory: 4Gi
+              volumeMounts:
+                - name: serve-code
+                  mountPath: /home/ray/serve
+          volumes:
+            - name: serve-code
+              configMap:
+                name: credit-risk-ray-serve
+    workerGroupSpecs:
+      - groupName: transform-workers
+        replicas: 2
+        minReplicas: 2
+        maxReplicas: 10
+        rayStartParams: {}
+        template:
+          spec:
+            containers:
+              - name: ray-worker
+                image: rayproject/ray@sha256:replace-with-approved-digest
+                resources:
+                  requests:
+                    cpu: "2"
+                    memory: 4Gi
+                  limits:
+                    cpu: "4"
+                    memory: 8Gi
+---
+apiVersion: ray.io/v1
+kind: RayJob
+metadata:
+  name: shadow-canary-evaluator
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/component: kuberay-shadow-analysis
+    kueue.x-k8s.io/queue-name: credit-risk-canary-queue
+  annotations:
+    kueue.x-k8s.io/elastic-job: "true"
+spec:
+  shutdownAfterJobFinishes: true
+  entrypoint: python -c "import ray; ray.init(); print('shadow canary evaluator admitted')"
+  rayClusterSpec:
+    enableInTreeAutoscaling: true
+    headGroupSpec:
+      rayStartParams:
+        dashboard-host: 0.0.0.0
+      template:
+        spec:
+          containers:
+            - name: ray-head
+              image: rayproject/ray@sha256:replace-with-approved-digest
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: 1Gi
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+    workerGroupSpecs:
+      - groupName: evaluator-workers
+        replicas: 1
+        minReplicas: 1
+        maxReplicas: 6
+        rayStartParams: {}
+        template:
+          spec:
+            containers:
+              - name: ray-worker
+                image: rayproject/ray@sha256:replace-with-approved-digest
+                resources:
+                  requests:
+                    cpu: "1"
+                    memory: 2Gi
+                  limits:
+                    cpu: "2"
+                    memory: 4Gi
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kuberay-serving-analysis
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: kuberay.serving.analysis
+      rules:
+        - alert: CreditRiskRayServiceDegraded
+          expr: ray_serve_deployment_replica_healthy{deployment="FeatureTransformer"} < 2
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "RayService transform/explainer capacity is degraded; route through the KServe fallback transformer."
