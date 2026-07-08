@@ -1,0 +1,120 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: indexed-serving-job-runbook
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    platform.openai.com/component: indexed-job-resilience
+data:
+  airflowBackfillCreate: >-
+    airflow backfill create --dag-id progressive_kserve_rollout --from-date 2026-07-01 --to-date 2026-07-07 --reprocess-behavior failed --max-active-runs 2 --run-backwards
+  shardContract: "JOB_COMPLETION_INDEX selects shadow comparison, batch replay, gateway conformance, explainer, or rollback smoke work."
+  servingBoundary: "Online KServe predictor replicas are never controlled by the indexed analysis job."
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: credit-risk-serving-indexed-analysis
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    app.kubernetes.io/component: indexed-job-resilience
+    kueue.x-k8s.io/queue-name: serving-analysis-queue
+spec:
+  parallelism: 6
+  completions: 12
+  completionMode: Indexed
+  backoffLimitPerIndex: 1
+  maxFailedIndexes: 2
+  activeDeadlineSeconds: 5400
+  ttlSecondsAfterFinished: 86400
+  successPolicy:
+    rules:
+      - succeededCount: 10
+  podFailurePolicy:
+    rules:
+      - action: Ignore
+        onPodConditions:
+          - type: DisruptionTarget
+      - action: FailIndex
+        onExitCodes:
+          containerName: serving-analysis-shard
+          operator: In
+          values: [42]
+      - action: FailJob
+        onExitCodes:
+          containerName: serving-analysis-shard
+          operator: In
+          values: [78, 126]
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: serving-analysis-shard
+        serving-wave: indexed-resilience
+    spec:
+      serviceAccountName: canary-analysis-runner
+      restartPolicy: Never
+      containers:
+        - name: serving-analysis-shard
+          image: ghcr.io/kevinmeix1/kserve-model-serving-platform:latest
+          command: ["bash", "-lc"]
+          args:
+            - >-
+              echo "running serving analysis shard ${JOB_COMPLETION_INDEX}" &&
+              python -m kserve_model_platform monitor --output .local &&
+              python -m kserve_model_platform trace-report --output .local
+          env:
+            - name: SHARD_SOURCE
+              value: "JOB_COMPLETION_INDEX"
+            - name: FAILURE_CONTRACT_EXIT_CODE
+              value: "42"
+          resources:
+            requests:
+              cpu: "750m"
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 3Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: indexed-serving-job-alerts
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: kserve-model-serving-platform
+    prometheus: platform
+spec:
+  groups:
+    - name: kserve.indexed-job-resilience
+      rules:
+        - alert: KServeIndexedJobFailedIndexesHigh
+          expr: kube_job_status_failed{namespace="mlops-serving",job_name=~"credit-risk-serving-indexed.*"} > 2
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Indexed serving analysis job exceeded failed-index budget.
+            runbook: "Inspect status.failedIndexes and recover only failed shadow or replay shards."
+        - alert: KServeIndexedJobShardRetryHigh
+          expr: increase(kube_pod_container_status_restarts_total{namespace="mlops-serving",container="serving-analysis-shard"}[30m]) > 3
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Serving analysis shard restart pressure is above the per-index retry budget.
+            runbook: "Check podFailurePolicy matches before retries consume rollback validation quota."
+        - alert: AirflowKServeBackfillConcurrencySaturated
+          expr: airflow_dagrun_running{dag_id="progressive_kserve_rollout"} >= 2
+          for: 20m
+          labels:
+            severity: warning
+          annotations:
+            summary: KServe rollout backfill max_active_runs is saturated.
+            runbook: "Protect live rollout and rollback tasks before increasing historical recovery concurrency."

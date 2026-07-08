@@ -17,6 +17,7 @@ from .elastic_workload import build_elastic_workload_plan
 from .gitops_release import build_gitops_plan
 from .governance import build_governance_bundle
 from .identity import build_identity_access_report
+from .indexed_job_resilience import build_indexed_job_resilience_plan
 from .inference_gateway import build_inference_gateway_plan
 from .io import read_json, write_csv, write_json
 from .kuberay_capacity import build_kuberay_capacity_plan
@@ -168,6 +169,7 @@ def demo(output: str | Path) -> dict:
     deadline_alerts = build_deadline_alert_plan(root)
     cost_observability = build_cost_observability_report(root)
     elastic_workload = build_elastic_workload_plan(root)
+    indexed_job_resilience = build_indexed_job_resilience_plan(root)
     tenancy = build_tenancy_report(root)
     identity_access = build_identity_access_report(root)
     performance_budget = build_performance_budget_report(root)
@@ -212,6 +214,7 @@ def demo(output: str | Path) -> dict:
         "deadline_alerts": deadline_alerts,
         "cost_observability": cost_observability,
         "elastic_workload": elastic_workload,
+        "indexed_job_resilience": indexed_job_resilience,
         "tenancy": tenancy,
         "identity_access": identity_access,
         "performance_budget": performance_budget,
@@ -259,6 +262,7 @@ def main(argv: list[str] | None = None) -> int:
         "deadline-alerts-plan",
         "cost-observability",
         "elastic-workload-plan",
+        "indexed-job-resilience",
         "tenancy-report",
         "identity-report",
         "performance-budget",
@@ -330,6 +334,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_cost_observability_report(args.output), indent=2, sort_keys=True))
     elif args.command == "elastic-workload-plan":
         print(json.dumps(build_elastic_workload_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "indexed-job-resilience":
+        print(json.dumps(build_indexed_job_resilience_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "tenancy-report":
         print(json.dumps(build_tenancy_report(args.output), indent=2, sort_keys=True))
     elif args.command == "identity-report":
