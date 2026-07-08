@@ -17,6 +17,13 @@ except Exception:
 
 CANARY_STEPS = [1, 5, 10, 25, 50]
 OBSERVABILITY_CHECKS = ["latency", "error_rate", "shadow_delta", "route_mix", "score_distribution"]
+EVENT_DRIVEN_ASSET_EXPRESSION = "(CHALLENGER & ROUTER & WEIGHTED_ROUTE) | ROLLBACK_REQUEST"
+ASSET_WATCHER_CONTRACTS = {
+    "AssetWatcher": "MLflow, KServe, and Gateway API events update Airflow rollout assets",
+    "BaseEventTrigger": "watchers must inherit from BaseEventTrigger to avoid rescheduling loops",
+    "shared_stream_key": "registry and Kubernetes watches share upstream polling across subscribers",
+    "AssetAlias": "runtime modelcar and MLflow artifact URIs resolve after challenger registration",
+}
 
 
 def notify_release_failure(context):
