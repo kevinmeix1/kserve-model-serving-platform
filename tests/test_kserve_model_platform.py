@@ -23,6 +23,7 @@ from kserve_model_platform.gitops_release import build_gitops_plan
 from kserve_model_platform.governance import build_governance_bundle
 from kserve_model_platform.identity import build_identity_access_report
 from kserve_model_platform.indexed_job_resilience import build_indexed_job_resilience_plan
+from kserve_model_platform.inplace_resize import build_inplace_resize_plan
 from kserve_model_platform.inference_gateway import build_inference_gateway_plan
 from kserve_model_platform.io import read_json, read_jsonl, write_json
 from kserve_model_platform.kuberay_capacity import build_kuberay_capacity_plan
@@ -327,7 +328,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
 
         for expected in ["actions/upload-artifact@v6", "actions/attest@v4", "attestations: write", "GITHUB_STEP_SUMMARY", "make ci-verify", "concurrency"]:
             self.assertIn(expected, workflow)
-        for expected in ["ci-verify:", "index.html", "tenancy_fairness_report.json", "identity_access_report.json", "pending_workload_visibility_plan.json", "flavor_fungibility_plan.json", "cohort_fair_sharing_plan.json", "pod_resource_envelope_plan.json", "event_driven_assets_plan.json", "dag_bundle_versioning_plan.json", "model_cache_plan.json", "multikueue_dispatch_plan.json", "provisioning_admission_plan.json", "indexed_job_resilience_plan.json", "elastic_workload_plan.json", "cost_observability_report.json", "deadline_alert_plan.json", "semantic_telemetry_plan.json", "inference_gateway_plan.json", "kuberay_capacity_plan.json", "topology_placement_plan.json", "admin_access_diagnostics_plan.json", "advanced_device_sharing_plan.json", "resource_health_status_plan.json", "device_allocation_plan.json", "release_admission_decision.json", "queue_simulation.json", "performance_budget.json", "accelerator_capacity_plan.json", "orchestration_scorecard.json", "supply_chain_evidence.json", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
+        for expected in ["ci-verify:", "index.html", "tenancy_fairness_report.json", "identity_access_report.json", "pending_workload_visibility_plan.json", "flavor_fungibility_plan.json", "cohort_fair_sharing_plan.json", "pod_resource_envelope_plan.json", "event_driven_assets_plan.json", "dag_bundle_versioning_plan.json", "model_cache_plan.json", "multikueue_dispatch_plan.json", "provisioning_admission_plan.json", "indexed_job_resilience_plan.json", "elastic_workload_plan.json", "cost_observability_report.json", "deadline_alert_plan.json", "semantic_telemetry_plan.json", "inference_gateway_plan.json", "kuberay_capacity_plan.json", "topology_placement_plan.json", "inplace_resize_plan.json", "admin_access_diagnostics_plan.json", "advanced_device_sharing_plan.json", "resource_health_status_plan.json", "device_allocation_plan.json", "release_admission_decision.json", "queue_simulation.json", "performance_budget.json", "accelerator_capacity_plan.json", "orchestration_scorecard.json", "supply_chain_evidence.json", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
             self.assertIn(expected, makefile)
 
     def test_accelerator_capacity_plan_and_kubernetes_assets_exist(self) -> None:
@@ -414,6 +415,24 @@ class KServeModelServingPlatformTest(unittest.TestCase):
         for expected in ["resource.kubernetes.io/admin-access", "adminAccess: true", "mlops-serving-dra-admin", "KServeDRAAdminAccessClaimRunningTooLong"]:
             self.assertIn(expected, manifest)
         for expected in ["KServe DRA AdminAccess Diagnostics", "AdminAccess", "Least-privilege RBAC", "model-cache state"]:
+            self.assertIn(expected, docs)
+
+    def test_inplace_resize_plan_and_kubernetes_assets_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        manifest = (repo / "kubernetes" / "inplace-pod-resize.yaml").read_text(encoding="utf-8")
+        docs = (repo / "docs" / "inplace-pod-resize.md").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            report = build_inplace_resize_plan(root)
+
+            self.assertTrue(report["passed"])
+            self.assertEqual(report["recommended_action"], "enable_kserve_inplace_resize_controls")
+            self.assertEqual(report["features"]["pod_level_resource_resize"]["feature_gate"], "InPlacePodLevelResourcesVerticalScaling")
+            self.assertTrue(any(policy["scope"] == "pod" for policy in report["policies"]))
+            self.assertTrue((root / "reports" / "inplace_resize_plan.json").exists())
+        for expected in ["--subresource resize", "resizePolicy", "InPlaceOrRecreate", "PodResizePending", "KServeInPlaceResizeInProgressTooLong"]:
+            self.assertIn(expected, manifest)
+        for expected in ["KServe In-Place Pod Resize Controls", "pods/resize", "PodResizePending", "InPlaceOrRecreate"]:
             self.assertIn(expected, docs)
 
     def test_topology_placement_plan_and_kubernetes_assets_exist(self) -> None:
@@ -784,6 +803,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertIn("dra_resource_health_status", names)
             self.assertIn("dra_advanced_device_sharing", names)
             self.assertIn("dra_admin_access_diagnostics", names)
+            self.assertIn("kubernetes_inplace_resize", names)
             self.assertIn("supply_chain_provenance", names)
             self.assertTrue((root / "reports" / "orchestration_scorecard.json").exists())
 
@@ -826,6 +846,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
                 "resource_health_status_plan.json",
                 "advanced_device_sharing_plan.json",
                 "admin_access_diagnostics_plan.json",
+                "inplace_resize_plan.json",
                 "topology_placement_plan.json",
                 "kuberay_capacity_plan.json",
                 "inference_gateway_plan.json",
@@ -898,6 +919,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue((root / "reports" / "resource_health_status_plan.json").exists())
             self.assertTrue((root / "reports" / "advanced_device_sharing_plan.json").exists())
             self.assertTrue((root / "reports" / "admin_access_diagnostics_plan.json").exists())
+            self.assertTrue((root / "reports" / "inplace_resize_plan.json").exists())
             self.assertTrue((root / "reports" / "topology_placement_plan.json").exists())
             self.assertTrue((root / "reports" / "kuberay_capacity_plan.json").exists())
             self.assertTrue((root / "reports" / "inference_gateway_plan.json").exists())

@@ -48,6 +48,7 @@ jobs:
             echo "- DRA resource health status: .local/reports/resource_health_status_plan.json"
             echo "- Advanced device sharing: .local/reports/advanced_device_sharing_plan.json"
             echo "- AdminAccess diagnostics: .local/reports/admin_access_diagnostics_plan.json"
+            echo "- In-place resize plan: .local/reports/inplace_resize_plan.json"
             echo "- Topology placement plan: .local/reports/topology_placement_plan.json"
             echo "- KubeRay capacity plan: .local/reports/kuberay_capacity_plan.json"
             echo "- Inference gateway plan: .local/reports/inference_gateway_plan.json"

@@ -1,0 +1,115 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kserve-inplace-pod-resize-runbook
+  namespace: mlops-serving
+data:
+  challenger-cpu-resize.sh: |
+    kubectl patch pod credit-risk-challenger-0 \
+      -n mlops-serving \
+      --subresource resize \
+      --type merge \
+      --patch '{"spec":{"containers":[{"name":"predictor","resources":{"requests":{"cpu":"900m"},"limits":{"cpu":"1200m","memory":"1Gi"}}}]}}'
+  shadow-analysis-pod-level-resize.sh: |
+    kubectl patch pod shadow-analysis-runner-0 \
+      -n mlops-serving-analysis \
+      --subresource resize \
+      --type merge \
+      --patch '{"spec":{"resources":{"requests":{"memory":"10Gi"},"limits":{"cpu":"6","memory":"14Gi"}}}}'
+  observe-resize-status.sh: |
+    kubectl get pod credit-risk-challenger-0 -n mlops-serving -o jsonpath='{.status.conditions[?(@.type=="PodResizePending")].reason}{"\n"}{.status.conditions[?(@.type=="PodResizeInProgress")].reason}{"\n"}{.status.containerStatuses[*].resources}'
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: credit-risk-challenger
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: credit-risk-challenger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: credit-risk-challenger
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: credit-risk-challenger
+    spec:
+      resources:
+        requests:
+          cpu: "600m"
+          memory: "1Gi"
+        limits:
+          cpu: "2"
+          memory: "2Gi"
+      containers:
+        - name: predictor
+          image: ghcr.io/kevinmeix1/credit-risk-predictor:2026.07.08
+          imagePullPolicy: IfNotPresent
+          resizePolicy:
+            - resourceName: cpu
+              restartPolicy: NotRequired
+            - resourceName: memory
+              restartPolicy: RestartContainer
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: credit-risk-challenger-inplace-or-recreate
+  namespace: mlops-serving
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: credit-risk-challenger
+  updatePolicy:
+    updateMode: InPlaceOrRecreate
+  resourcePolicy:
+    containerPolicies:
+      - containerName: predictor
+        controlledResources: ["cpu", "memory"]
+        minAllowed:
+          cpu: "250m"
+          memory: "512Mi"
+        maxAllowed:
+          cpu: "2"
+          memory: "2Gi"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kserve-inplace-pod-resize
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: kserve.inplace.pod.resize
+      rules:
+        - alert: KServeInPlaceResizePendingTooLong
+          expr: kube_pod_status_condition{namespace=~"mlops-serving|mlops-serving-analysis",condition="PodResizePending",status="true"} > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "A KServe resize is pending capacity admission"
+        - alert: KServeInPlaceResizeInProgressTooLong
+          expr: kube_pod_status_condition{namespace=~"mlops-serving|mlops-serving-analysis",condition="PodResizeInProgress",status="true"} > 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "A KServe resize is admitted but not fully applied to cgroups"

@@ -24,6 +24,7 @@ from .gitops_release import build_gitops_plan
 from .governance import build_governance_bundle
 from .identity import build_identity_access_report
 from .indexed_job_resilience import build_indexed_job_resilience_plan
+from .inplace_resize import build_inplace_resize_plan
 from .inference_gateway import build_inference_gateway_plan
 from .io import read_json, write_csv, write_json
 from .kuberay_capacity import build_kuberay_capacity_plan
@@ -177,6 +178,7 @@ def demo(output: str | Path) -> dict:
     resource_health_status = build_resource_health_status_plan(root)
     advanced_device_sharing = build_advanced_device_sharing_plan(root)
     admin_access_diagnostics = build_admin_access_diagnostic_plan(root)
+    inplace_resize = build_inplace_resize_plan(root)
     topology_placement = build_topology_placement_plan(root)
     kuberay_capacity = build_kuberay_capacity_plan(root)
     inference_gateway = build_inference_gateway_plan(root)
@@ -234,6 +236,7 @@ def demo(output: str | Path) -> dict:
         "resource_health_status": resource_health_status,
         "advanced_device_sharing": advanced_device_sharing,
         "admin_access_diagnostics": admin_access_diagnostics,
+        "inplace_resize": inplace_resize,
         "topology_placement": topology_placement,
         "kuberay_capacity": kuberay_capacity,
         "inference_gateway": inference_gateway,
@@ -294,6 +297,7 @@ def main(argv: list[str] | None = None) -> int:
         "resource-health-status",
         "advanced-device-sharing",
         "admin-access-diagnostics",
+        "inplace-resize-plan",
         "topology-plan",
         "kuberay-plan",
         "inference-gateway-plan",
@@ -374,6 +378,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_advanced_device_sharing_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "admin-access-diagnostics":
         print(json.dumps(build_admin_access_diagnostic_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "inplace-resize-plan":
+        print(json.dumps(build_inplace_resize_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "topology-plan":
         print(json.dumps(build_topology_placement_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "kuberay-plan":

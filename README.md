@@ -119,6 +119,8 @@ For DRA prioritized alternatives, partitionable devices, consumable capacity, an
 
 For Kubernetes v1.36 DRA `AdminAccess` diagnostics with KServe revision evidence, model-cache state, and rollback route guardrails, see [KServe DRA AdminAccess diagnostics](docs/dra-admin-access-diagnostics.md).
 
+For Kubernetes v1.35 in-place Pod Resize, v1.36 pod-level resource resizing, KServe canary safety, and VPA `InPlaceOrRecreate` guardrails, see [KServe in-place Pod resize controls](docs/inplace-pod-resize.md).
+
 For Kueue topology-aware serving analysis, LeaderWorkerSet co-location, and zone-spread router placement, see [topology-aware scheduling](docs/topology-aware-scheduling.md).
 
 For RayService transforms, Kueue-admitted canary analysis, elastic worker bounds, and explainer fallbacks, see [KubeRay and Kueue](docs/kuberay-kueue.md).
