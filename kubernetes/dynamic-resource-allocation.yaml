@@ -1,0 +1,103 @@
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata:
+  name: gpu-l4-shared
+  labels:
+    platform.mlops.dev/device-tier: serving-canary
+spec:
+  selectors:
+    - cel:
+        expression: "device.driver == 'gpu.resource.kubernetes.io'"
+---
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata:
+  name: gpu-a100-mig
+  labels:
+    platform.mlops.dev/device-tier: isolated-profile
+spec:
+  selectors:
+    - cel:
+        expression: "device.driver == 'gpu.resource.kubernetes.io'"
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: l4-shared-challenger
+  namespace: mlops-serving
+spec:
+  spec:
+    devices:
+      requests:
+        - name: gpu
+          exactly:
+            deviceClassName: gpu-l4-shared
+            allocationMode: ExactCount
+            count: 1
+      config:
+        - opaque:
+            driver: gpu.resource.kubernetes.io
+            parameters:
+              sharingStrategy: time-slicing
+              replicas: "4"
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: a100-mig-profile
+  namespace: mlops-serving
+spec:
+  spec:
+    devices:
+      requests:
+        - name: mig
+          exactly:
+            deviceClassName: gpu-a100-mig
+            allocationMode: ExactCount
+            count: 1
+      config:
+        - opaque:
+            driver: gpu.resource.kubernetes.io
+            parameters:
+              sharingStrategy: mig
+              migProfile: 1g.10gb
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: credit-risk-challenger-dra
+  namespace: mlops-serving
+  annotations:
+    serving.kserve.io/deploymentMode: Serverless
+    kueue.x-k8s.io/queue-name: credit-risk-serving-queue
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: sklearn
+      storageUri: s3://model-registry/credit-risk/challenger
+      resources:
+        requests:
+          cpu: "1"
+          memory: 2Gi
+    podSpec:
+      resourceClaims:
+        - name: challenger-gpu
+          resourceClaimTemplateName: l4-shared-challenger
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: credit-risk-dra-serving
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: credit-risk.dra.claims
+      rules:
+        - alert: CreditRiskDRAClaimPending
+          expr: kube_resourceclaim_status_phase{namespace="mlops-serving",phase="Pending"} > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "A KServe canary ResourceClaim is pending; hold challenger traffic increase."
