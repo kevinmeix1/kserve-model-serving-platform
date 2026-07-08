@@ -37,6 +37,17 @@ def autoscaling_chips(value: object) -> str:
     return "".join(f'<span class="chip">{labels.get(key, key)} {esc(amount)}</span>' for key, amount in value.items())
 
 
+def compact_label(value: object) -> str:
+    text = "" if value is None else str(value)
+    if text.startswith("risk-model-"):
+        display = text.replace("risk-model-", "risk ")
+    elif text.startswith("req_"):
+        display = f"req {text.split('_')[-1].lstrip('0') or '0'}"
+    else:
+        display = {"kserve-sklearnserver": "KServe sklearn"}.get(text, text.replace("-", " "))
+    return f'<span class="nowrap" title="{esc(text)}">{esc(display)}</span>'
+
+
 def rows(items: list[dict], columns: list[str]) -> str:
     if not items:
         return f"<tr><td colspan='{len(columns)}'>No records</td></tr>"
@@ -67,9 +78,9 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
     ]
     prediction_rows = [
         {
-            "request": row.get("request_id"),
+            "request": compact_label(row.get("request_id")),
             "route": row.get("selected_alias"),
-            "model": row.get("model_version"),
+            "model": compact_label(row.get("model_version")),
             "score": row.get("risk_score"),
             "band": row.get("risk_band"),
             "latency": row.get("latency_ms"),
@@ -108,6 +119,7 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
         .pass {{ color: #166534; background: #dcfce7; }}
         .fail {{ color: #991b1b; background: #fee2e2; }}
         .chip {{ display: inline-block; margin: 0 5px 5px 0; padding: 4px 8px; border-radius: 999px; background: #ecfeff; color: #0e7490; font-size: 12px; font-weight: 800; white-space: nowrap; }}
+        .nowrap {{ display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }}
         .summary {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }}
         .summary div {{ border: 1px solid #e3e9f0; border-radius: 6px; padding: 12px; min-height: 74px; }}
         .summary span {{ display: block; color: #64748b; font-size: 12px; margin-bottom: 8px; }}
@@ -122,8 +134,8 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
       </header>
       <main>
         <section class="grid">
-          <div class="metric"><span>Champion</span><strong>{esc(aliases.get('champion'))}</strong></div>
-          <div class="metric"><span>Challenger</span><strong>{esc(aliases.get('challenger') or 'none')}</strong></div>
+          <div class="metric"><span>Champion</span><strong>{compact_label(aliases.get('champion'))}</strong></div>
+          <div class="metric"><span>Challenger</span><strong>{compact_label(aliases.get('challenger') or 'none')}</strong></div>
           <div class="metric"><span>Canary status</span><strong>{badge(decision.get('passed', False))}</strong></div>
           <div class="metric"><span>Latency p95</span><strong>{esc(report.get('latency_ms', {}).get('p95'))} ms</strong></div>
         </section>
@@ -137,7 +149,7 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
               <h2>KServe Deployment</h2>
               <table>
                 <tr><th>Service</th><th>Namespace</th><th>Runtime</th><th>Traffic</th><th>Autoscaling</th></tr>
-                <tr><td>{esc(deployment.get('service_name'))}</td><td>{esc(deployment.get('namespace'))}</td><td>{esc(deployment.get('runtime'))}</td><td>{traffic_chips(deployment.get('traffic'))}</td><td>{autoscaling_chips(deployment.get('autoscaling'))}</td></tr>
+                <tr><td>{compact_label(deployment.get('service_name'))}</td><td>{compact_label(deployment.get('namespace'))}</td><td>{compact_label(deployment.get('runtime'))}</td><td>{traffic_chips(deployment.get('traffic'))}</td><td>{autoscaling_chips(deployment.get('autoscaling'))}</td></tr>
               </table>
             </div>
             <div class="panel">

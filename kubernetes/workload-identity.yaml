@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: credit-risk-router
+  namespace: mlops-serving
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::111122223333:role/credit-risk-router
+  labels:
+    app.kubernetes.io/part-of: kserve-model-serving-platform
+    spiffe.io/spiffe-id: spiffe://mlops.local/ns/mlops-serving/sa/credit-risk-router
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: credit-risk-predictor
+  namespace: mlops-serving
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::111122223333:role/credit-risk-model-reader
+  labels:
+    app.kubernetes.io/part-of: kserve-model-serving-platform
+    spiffe.io/spiffe-id: spiffe://mlops.local/ns/mlops-serving/sa/credit-risk-predictor
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: canary-analysis-runner
+  namespace: mlops-serving-analysis
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::111122223333:role/serving-canary-analysis
+  labels:
+    app.kubernetes.io/part-of: kserve-model-serving-platform
+    spiffe.io/spiffe-id: spiffe://mlops.local/ns/mlops-serving-analysis/sa/canary-analysis-runner
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: canary-analysis-minimal
+  namespace: mlops-serving-analysis
+rules:
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices"]
+    verbs: ["get", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: canary-analysis-minimal
+  namespace: mlops-serving-analysis
+subjects:
+  - kind: ServiceAccount
+    name: canary-analysis-runner
+    namespace: mlops-serving-analysis
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: canary-analysis-minimal
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: serving-aws-secrets
+  namespace: mlops-serving
+spec:
+  provider:
+    aws:
+      service: SecretsManager
+      region: us-east-1
+      auth:
+        jwt:
+          serviceAccountRef:
+            name: credit-risk-router
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gateway-tls-cert
+  namespace: mlops-serving
+spec:
+  refreshInterval: 30m
+  secretStoreRef:
+    name: serving-aws-secrets
+    kind: SecretStore
+  target:
+    name: gateway-tls-cert
+    creationPolicy: Owner
+  data:
+    - secretKey: tls.crt
+      remoteRef:
+        key: prod/serving/gateway
+        property: tls.crt
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airflow-workload-identity-policy
+  namespace: mlops-serving-analysis
+data:
+  service_account_name: canary-analysis-runner
+  projected_token_audience: sts.amazonaws.com
+  projected_token_ttl_seconds: "3600"
+  kubernetes_pod_operator_default: "pin service_account_name per rollout task"
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: workload-identity-egress
+  namespace: mlops-serving
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: kserve-model-serving-platform
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
