@@ -50,6 +50,7 @@ def render_artifact_index(root: str | Path, *, title: str, description: str, das
         ("Pending Workload Visibility", "pending_workload_visibility_plan.json", "Kueue VisibilityOnDemand, raw pendingworkloads API paths, serving queue triage, and admission-wait alerts."),
         ("Performance Budget", "performance_budget.json", "p95/p99 latency, error-rate, canary-volume, and shadow-delta gates with rollback actions."),
         ("Queue Simulation", "queue_simulation.json", "Kueue quota, serving priority, GPU, Airflow pool, and rollback preemption simulation."),
+        ("Workload-Aware Scheduling", "workload_aware_scheduling_plan.json", "Kubernetes v1.36 Workload/PodGroup readiness for shadow replay, route conformance, rollback smoke, topology constraints, DRA sharing, and workload-aware preemption."),
         ("Release Admission", "release_admission_decision.json", "Fail-closed canary admission record combining rollout, SLO, queue, governance, and provenance evidence."),
         ("Tenant Fairness", "tenancy_fairness_report.json", "Serving tenant quotas, Kueue cohorts, Airflow pools, rollback reservations, and cost labels."),
         ("Workload Identity", "identity_access_report.json", "Keyless serving identities for router, predictor, canary analysis, and registry access."),

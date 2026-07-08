@@ -153,6 +153,8 @@ For Kueue ResourceFlavor fallback, `TryNextFlavor` behavior, and serving spot/on
 
 For Kueue `VisibilityOnDemand`, pending workload API queries, route-smoke queue triage, and admission-wait alerts, see [Kueue pending workload visibility](docs/kueue-pending-workload-visibility.md).
 
+For Kubernetes v1.36 Workload/PodGroup readiness across shadow replay, route conformance, rollback smoke, topology constraints, DRA sharing, and workload-aware preemption, see [workload-aware scheduling](docs/workload-aware-scheduling.md).
+
 For portable OpenTelemetry attributes, GenAI token/cost fields, Kubernetes correlation, and telemetry redaction guardrails, see [semantic telemetry](docs/semantic-telemetry.md).
 
 For serving tenant quotas, Kueue cohorts, Airflow pools, rollback reservations, chargeback labels, and noisy-neighbor controls, see [multi-tenant fairness](docs/multi-tenant-fairness.md).

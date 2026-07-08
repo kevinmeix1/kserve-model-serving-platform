@@ -72,6 +72,7 @@ jobs:
             echo "- Workload identity: .local/reports/identity_access_report.json"
             echo "- Performance budget: .local/reports/performance_budget.json"
             echo "- Queue simulation: .local/reports/queue_simulation.json"
+            echo "- Workload-aware scheduling: .local/reports/workload_aware_scheduling_plan.json"
             echo "- Release admission: .local/reports/release_admission_decision.json"
             echo ""
             echo "Generated reports:"

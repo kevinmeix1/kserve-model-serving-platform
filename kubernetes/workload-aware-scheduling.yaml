@@ -1,0 +1,116 @@
+apiVersion: scheduling.k8s.io/v1alpha2
+kind: PodGroup
+metadata:
+  name: shadow-replay-pg
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: credit-risk-shadow-replay
+    platform.mlops.dev/control: workload-aware-scheduling
+spec:
+  priorityClassName: serving-analysis-critical
+  priority: 900
+  disruptionMode: PodGroup
+  schedulingPolicy:
+    gang:
+      minCount: 5
+  schedulingConstraints:
+    topology:
+      - key: topology.kubernetes.io/zone
+  resourceClaims:
+    - name: shadow-replay-gpu-claim
+      resourceClaimTemplateName: serving-analysis-gpu-claim-template
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: serving-analysis-gpu-claim-template
+  namespace: mlops-serving
+spec:
+  spec:
+    devices:
+      requests:
+        - name: serving-analysis-gpu
+          deviceClassName: gpu-l4-shared
+          allocationMode: All
+          count: 1
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: shadow-replay-indexed-job
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/name: credit-risk-shadow-replay
+    kueue.x-k8s.io/queue-name: serving-analysis
+    platform.mlops.dev/workload-aware-scheduling: "candidate"
+  annotations:
+    scheduling.k8s.io/feature-gate: WorkloadWithJob
+    platform.mlops.dev/podgroup: shadow-replay-pg
+spec:
+  completionMode: Indexed
+  parallelism: 5
+  completions: 5
+  backoffLimitPerIndex: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: credit-risk-shadow-replay
+    spec:
+      restartPolicy: Never
+      priorityClassName: serving-analysis-critical
+      resourceClaims:
+        - name: shadow-replay-gpu-claim
+          resourceClaimTemplateName: serving-analysis-gpu-claim-template
+      containers:
+        - name: shadow-replay
+          image: ghcr.io/kevinmeix1/credit-risk-shadow-replay@sha256:demo
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: JOB_COMPLETION_INDEX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
+            - name: WORKLOAD_AWARE_SCHEDULING
+              value: "alpha-readiness"
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+---
+apiVersion: scheduling.k8s.io/v1alpha2
+kind: PodGroup
+metadata:
+  name: route-conformance-pg
+  namespace: mlops-serving
+spec:
+  priorityClassName: serving-analysis-critical
+  priority: 800
+  disruptionMode: PodGroup
+  schedulingPolicy:
+    gang:
+      minCount: 4
+  schedulingConstraints:
+    topology:
+      - key: topology.kubernetes.io/rack
+  resourceClaims:
+    - name: route-conformance-cpu-claim
+      resourceClaimTemplateName: serving-analysis-gpu-claim-template
+---
+apiVersion: scheduling.k8s.io/v1alpha2
+kind: PodGroup
+metadata:
+  name: serving-rollback-smoke-pg
+  namespace: mlops-serving
+spec:
+  priorityClassName: serving-rollback-critical
+  priority: 1100
+  disruptionMode: PodGroup
+  schedulingPolicy:
+    gang:
+      minCount: 3
+  schedulingConstraints:
+    topology:
+      - key: kubernetes.io/hostname

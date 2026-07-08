@@ -56,6 +56,7 @@ from .supply_chain import build_supply_chain_evidence
 from .tenancy import build_tenancy_report
 from .topology_placement import build_topology_placement_plan
 from .traceability import build_trace_report
+from .workload_aware_scheduling import build_workload_aware_scheduling_plan
 
 
 def root_path(output: str | Path) -> Path:
@@ -204,6 +205,7 @@ def demo(output: str | Path) -> dict:
     identity_access = build_identity_access_report(root)
     performance_budget = build_performance_budget_report(root)
     queue_simulation = build_queue_simulation(root)
+    workload_aware_scheduling = build_workload_aware_scheduling_plan(root)
     supply_chain = build_supply_chain_evidence(
         root,
         project="KServe Model Serving Platform",
@@ -264,6 +266,7 @@ def demo(output: str | Path) -> dict:
         "identity_access": identity_access,
         "performance_budget": performance_budget,
         "queue_simulation": queue_simulation,
+        "workload_aware_scheduling": workload_aware_scheduling,
         "release_admission": release_admission,
         "artifact_index": str(artifact_index),
         "orchestration_scorecard": orchestration_scorecard,
@@ -327,6 +330,7 @@ def main(argv: list[str] | None = None) -> int:
         "identity-report",
         "performance-budget",
         "queue-simulation",
+        "workload-aware-scheduling",
         "release-admission",
     ]:
         cmd = sub.add_parser(command)
@@ -434,6 +438,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_performance_budget_report(args.output), indent=2, sort_keys=True))
     elif args.command == "queue-simulation":
         print(json.dumps(build_queue_simulation(args.output), indent=2, sort_keys=True))
+    elif args.command == "workload-aware-scheduling":
+        print(json.dumps(build_workload_aware_scheduling_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "release-admission":
         print(json.dumps(build_release_admission_decision(args.output), indent=2, sort_keys=True))
     return 0
