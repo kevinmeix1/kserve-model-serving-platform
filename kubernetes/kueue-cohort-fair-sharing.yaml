@@ -1,0 +1,117 @@
+apiVersion: config.kueue.x-k8s.io/v1beta2
+kind: Configuration
+metadata:
+  name: serving-kueue-fair-sharing
+fairSharing:
+  preemptionStrategies:
+    - LessThanOrEqualToFinalShare
+    - LessThanInitialShare
+featureGates:
+  AdmissionFairSharing: true
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: Cohort
+metadata:
+  name: mlops-serving-cohort
+spec:
+  fairSharing:
+    weight: 1
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: credit-risk-serving-tenant-queue
+spec:
+  cohort: mlops-serving-cohort
+  fairSharing:
+    weight: 5
+  preemption:
+    withinClusterQueue: LowerPriority
+    reclaimWithinCohort: Any
+  resourceGroups:
+    - coveredResources: ["cpu", "memory"]
+      flavors:
+        - name: cpu-spot
+          resources:
+            - name: cpu
+              nominalQuota: 20
+              borrowingLimit: 6
+              lendingLimit: 1
+            - name: memory
+              nominalQuota: 80Gi
+              borrowingLimit: 16Gi
+              lendingLimit: 4Gi
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: canary-analysis-tenant-queue
+spec:
+  cohort: mlops-serving-cohort
+  fairSharing:
+    weight: 2
+  preemption:
+    withinClusterQueue: LowerPriority
+    reclaimWithinCohort: LowerPriority
+  resourceGroups:
+    - coveredResources: ["cpu", "memory"]
+      flavors:
+        - name: cpu-spot
+          resources:
+            - name: cpu
+              nominalQuota: 12
+              borrowingLimit: 8
+              lendingLimit: 4
+            - name: memory
+              nominalQuota: 48Gi
+              borrowingLimit: 24Gi
+              lendingLimit: 12Gi
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: load-test-tenant-queue
+spec:
+  cohort: mlops-serving-cohort
+  fairSharing:
+    weight: 1
+  preemption:
+    withinClusterQueue: LowerPriority
+    reclaimWithinCohort: Never
+  resourceGroups:
+    - coveredResources: ["cpu", "memory"]
+      flavors:
+        - name: cpu-spot
+          resources:
+            - name: cpu
+              nominalQuota: 8
+              borrowingLimit: 3
+              lendingLimit: 6
+            - name: memory
+              nominalQuota: 24Gi
+              borrowingLimit: 8Gi
+              lendingLimit: 16Gi
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  name: online-route-smoke
+  namespace: mlops-serving-prod
+spec:
+  clusterQueue: credit-risk-serving-tenant-queue
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  name: shadow-analysis
+  namespace: mlops-serving-analysis
+spec:
+  clusterQueue: canary-analysis-tenant-queue
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  name: synthetic-load
+  namespace: mlops-serving-loadtest
+spec:
+  clusterQueue: load-test-tenant-queue

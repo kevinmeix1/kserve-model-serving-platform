@@ -59,6 +59,7 @@ jobs:
             echo "- DAG bundle versioning: .local/reports/dag_bundle_versioning_plan.json"
             echo "- Event-driven assets: .local/reports/event_driven_assets_plan.json"
             echo "- Pod resource envelopes: .local/reports/pod_resource_envelope_plan.json"
+            echo "- Cohort fair sharing: .local/reports/cohort_fair_sharing_plan.json"
             echo "- Tenant fairness: .local/reports/tenancy_fairness_report.json"
             echo "- Workload identity: .local/reports/identity_access_report.json"
             echo "- Performance budget: .local/reports/performance_budget.json"
