@@ -1,0 +1,151 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlops-serving-dra-admin
+  labels:
+    resource.kubernetes.io/admin-access: "true"
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dra-admin-diagnostic-runner
+  namespace: mlops-serving-dra-admin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dra-admin-access-claim-manager
+  namespace: mlops-serving-dra-admin
+rules:
+  - apiGroups: ["resource.k8s.io"]
+    resources: ["resourceclaims", "resourceclaimtemplates"]
+    verbs: ["create", "delete", "get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods", "events"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dra-admin-access-claim-manager
+  namespace: mlops-serving-dra-admin
+subjects:
+  - kind: ServiceAccount
+    name: dra-admin-diagnostic-runner
+    namespace: mlops-serving-dra-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dra-admin-access-claim-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kserve-serving-status-reader
+  namespace: mlops-serving
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["resource.k8s.io"]
+    resources: ["resourceclaims"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dra-admin-diagnostic-serving-reader
+  namespace: mlops-serving
+subjects:
+  - kind: ServiceAccount
+    name: dra-admin-diagnostic-runner
+    namespace: mlops-serving-dra-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kserve-serving-status-reader
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaim
+metadata:
+  name: challenger-gpu-admin-health
+  namespace: mlops-serving-dra-admin
+  labels:
+    mlops.io/diagnostic-purpose: admin-access-serving-health
+    mlops.io/target-workload: credit-risk-challenger
+  annotations:
+    mlops.io/cleanup-after-minutes: "15"
+    mlops.io/incident-required: "true"
+    mlops.io/traffic-policy: "pin-to-latest-rolledout-revision"
+spec:
+  devices:
+    requests:
+      - name: gpu
+        exactly:
+          deviceClassName: gpu-l4-shared
+          allocationMode: All
+          adminAccess: true
+          selectors:
+            - cel:
+                expression: "device.driver == 'gpu.resource.kubernetes.io'"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kserve-dra-admin-access-snapshot
+  namespace: mlops-serving-dra-admin
+  labels:
+    mlops.io/component: dra-admin-access-diagnostics
+spec:
+  ttlSecondsAfterFinished: 900
+  template:
+    metadata:
+      labels:
+        mlops.io/component: dra-admin-access-diagnostics
+    spec:
+      serviceAccountName: dra-admin-diagnostic-runner
+      restartPolicy: Never
+      containers:
+        - name: collect-serving-evidence
+          image: ghcr.io/kevinmeix1/kserve-diagnostic-runner:2026.07.08
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--claim=challenger-gpu-admin-health"
+            - "--target-namespace=mlops-serving"
+            - "--target-workload=credit-risk-challenger"
+            - "--evidence=allocatedResourcesStatus,ResourceClaim.status.devices,kserve.revision,model-cache-state"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kserve-dra-admin-access-diagnostics
+  namespace: mlops-serving-dra-admin
+spec:
+  groups:
+    - name: kserve.dra.admin.access
+      rules:
+        - alert: KServeDRAAdminAccessClaimRunningTooLong
+          expr: kube_resourceclaim_created{namespace="mlops-serving-dra-admin"} > 900
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "A privileged KServe DRA AdminAccess ResourceClaim exceeded its cleanup window"
+        - alert: KServeDRAAdminAccessWithoutIncident
+          expr: kube_resourceclaim_labels{namespace="mlops-serving-dra-admin",label_mlops_io_incident_required!="true"} > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "A privileged KServe DRA AdminAccess claim is missing incident linkage"
