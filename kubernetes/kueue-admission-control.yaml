@@ -66,7 +66,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: canary-admission-smoke
-          image: ghcr.io/kevinmeix1/kserve-model-serving-platform:latest
+          image: ghcr.io/kevinmeix1/kserve-model-serving-platform:2026.07.0
           command: ["bash", "-lc"]
           args:
             - "python -m kserve_model_platform health"

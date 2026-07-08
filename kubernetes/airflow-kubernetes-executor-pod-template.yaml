@@ -19,13 +19,13 @@ spec:
           app.kubernetes.io/name: kserve-model-serving-platform
   initContainers:
     - name: wait-for-kserve-controller
-      image: bitnami/kubectl:latest
+      image: bitnami/kubectl:1.36.0
       command: ["sh", "-c"]
       args:
         - "kubectl wait --for=condition=Available deployment/kserve-controller-manager -n kserve --timeout=120s"
   containers:
     - name: base
-      image: ghcr.io/kevinmeix1/kserve-model-serving-platform:latest
+      image: ghcr.io/kevinmeix1/kserve-model-serving-platform:2026.07.0
       command: ["bash", "-lc", "make demo"]
       envFrom:
         - configMapRef:

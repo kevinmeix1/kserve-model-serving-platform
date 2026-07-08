@@ -28,7 +28,7 @@ def kserve_pod(task_id: str, command: str, *, priority_weight: int = 1):
     return KubernetesPodOperator(
         task_id=task_id,
         namespace="mlops-serving",
-        image="ghcr.io/kevinmeix1/kserve-model-serving-platform:latest",
+        image="ghcr.io/kevinmeix1/kserve-model-serving-platform:2026.07.0",
         cmds=["bash", "-lc"],
         arguments=[command],
         service_account_name="credit-risk-predictor",

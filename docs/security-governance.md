@@ -17,4 +17,4 @@ This repo now includes a manifest policy audit and admission-policy examples.
 
 ## Why The Audit Flags Image Immutability
 
-The local manifests still use illustrative `:latest` image references. The audit deliberately flags that as a production gap. In a real release, images should be scanned, signed, and referenced by digest after provenance generation.
+The local manifests pin workload images to explicit release tags, and the audit now treats `:latest` references as a release-blocking policy failure. In a real release, images should still be scanned, signed, and promoted to digest references after provenance generation.

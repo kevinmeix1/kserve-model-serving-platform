@@ -60,7 +60,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: canary-analysis
-          image: ghcr.io/kevinmeix1/kserve-model-serving-platform:latest
+          image: ghcr.io/kevinmeix1/kserve-model-serving-platform:2026.07.0
           command: ["bash", "-lc"]
           args:
             - "make deploy && make simulate && make monitor"
