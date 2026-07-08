@@ -81,6 +81,8 @@ For the Kubernetes/Airflow robustness layer, see [Kubernetes and Airflow robustn
 
 For the operator-facing rollout planner, see [advanced rollout control plane](docs/control-plane-depth.md).
 
+For Airflow 3 rollout queue, shadow warmup, route convergence, and rollback Deadline Alerts with bounded callbacks, see [Airflow deadline alerts](docs/airflow-deadline-alerts.md).
+
 For the policy-as-code audit layer, see [security and governance](docs/security-governance.md).
 
 For OpenTelemetry-style runtime traces, see [observability and tracing](docs/observability-tracing.md).
