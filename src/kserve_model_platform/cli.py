@@ -31,6 +31,7 @@ from .monitoring import build_report, evaluate_canary
 from .multikueue_dispatch import build_multikueue_dispatch_plan
 from .network_security import build_network_security_report
 from .orchestration_scorecard import build_orchestration_scorecard
+from .pending_workload_visibility import build_pending_workload_visibility_plan
 from .policy_audit import audit_platform_policy
 from .performance_budget import build_performance_budget_report
 from .pod_resource_envelopes import build_pod_resource_envelope_plan
@@ -186,6 +187,7 @@ def demo(output: str | Path) -> dict:
     pod_resource_envelopes = build_pod_resource_envelope_plan(root)
     cohort_fair_sharing = build_cohort_fair_sharing_plan(root)
     flavor_fungibility = build_flavor_fungibility_plan(root)
+    pending_workload_visibility = build_pending_workload_visibility_plan(root)
     tenancy = build_tenancy_report(root)
     identity_access = build_identity_access_report(root)
     performance_budget = build_performance_budget_report(root)
@@ -239,6 +241,7 @@ def demo(output: str | Path) -> dict:
         "pod_resource_envelopes": pod_resource_envelopes,
         "cohort_fair_sharing": cohort_fair_sharing,
         "flavor_fungibility": flavor_fungibility,
+        "pending_workload_visibility": pending_workload_visibility,
         "tenancy": tenancy,
         "identity_access": identity_access,
         "performance_budget": performance_budget,
@@ -295,6 +298,7 @@ def main(argv: list[str] | None = None) -> int:
         "pod-resource-envelopes",
         "cohort-fair-sharing",
         "flavor-fungibility",
+        "pending-workload-visibility",
         "tenancy-report",
         "identity-report",
         "performance-budget",
@@ -384,6 +388,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_cohort_fair_sharing_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "flavor-fungibility":
         print(json.dumps(build_flavor_fungibility_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "pending-workload-visibility":
+        print(json.dumps(build_pending_workload_visibility_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "tenancy-report":
         print(json.dumps(build_tenancy_report(args.output), indent=2, sort_keys=True))
     elif args.command == "identity-report":

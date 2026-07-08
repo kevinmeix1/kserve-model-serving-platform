@@ -1,4 +1,4 @@
-.PHONY: demo deploy predict simulate monitor promote rollback health plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan device-plan topology-plan kuberay-plan inference-gateway-plan semantic-telemetry-plan deadline-alerts-plan cost-observability elastic-workload-plan indexed-job-resilience provisioning-admission multikueue-dispatch model-cache dag-bundle-plan event-driven-assets pod-resource-envelopes cohort-fair-sharing flavor-fungibility tenancy-report identity-report performance-budget queue-simulation release-admission ci-verify minikube-up kubernetes-plan test clean
+.PHONY: demo deploy predict simulate monitor promote rollback health plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan device-plan topology-plan kuberay-plan inference-gateway-plan semantic-telemetry-plan deadline-alerts-plan cost-observability elastic-workload-plan indexed-job-resilience provisioning-admission multikueue-dispatch model-cache dag-bundle-plan event-driven-assets pod-resource-envelopes cohort-fair-sharing flavor-fungibility pending-workload-visibility tenancy-report identity-report performance-budget queue-simulation release-admission ci-verify minikube-up kubernetes-plan test clean
 
 demo:
 	PYTHONPATH=src python3 -m kserve_model_platform demo --output .local
@@ -108,6 +108,9 @@ cohort-fair-sharing:
 flavor-fungibility:
 	PYTHONPATH=src python3 -m kserve_model_platform flavor-fungibility --output .local
 
+pending-workload-visibility:
+	PYTHONPATH=src python3 -m kserve_model_platform pending-workload-visibility --output .local
+
 tenancy-report:
 	PYTHONPATH=src python3 -m kserve_model_platform tenancy-report --output .local
 
@@ -150,6 +153,7 @@ ci-verify:
 	test -f .local/reports/pod_resource_envelope_plan.json
 	test -f .local/reports/cohort_fair_sharing_plan.json
 	test -f .local/reports/flavor_fungibility_plan.json
+	test -f .local/reports/pending_workload_visibility_plan.json
 	test -f .local/reports/tenancy_fairness_report.json
 	test -f .local/reports/identity_access_report.json
 	test -f .local/reports/performance_budget.json
@@ -179,6 +183,7 @@ ci-verify:
 	python3 -m json.tool .local/reports/pod_resource_envelope_plan.json >/dev/null
 	python3 -m json.tool .local/reports/cohort_fair_sharing_plan.json >/dev/null
 	python3 -m json.tool .local/reports/flavor_fungibility_plan.json >/dev/null
+	python3 -m json.tool .local/reports/pending_workload_visibility_plan.json >/dev/null
 	python3 -m json.tool .local/reports/tenancy_fairness_report.json >/dev/null
 	python3 -m json.tool .local/reports/identity_access_report.json >/dev/null
 	python3 -m json.tool .local/reports/performance_budget.json >/dev/null
@@ -221,6 +226,7 @@ minikube-up:
 	@echo "  kubectl apply -f kubernetes/pod-resource-envelopes.yaml"
 	@echo "  kubectl apply -f kubernetes/kueue-cohort-fair-sharing.yaml"
 	@echo "  kubectl apply -f kubernetes/kueue-flavor-fungibility.yaml"
+	@echo "  kubectl apply -f kubernetes/kueue-pending-workload-visibility.yaml"
 	@echo "  kubectl apply -f kubernetes/inference-gateway-routing.yaml"
 	@echo "  kubectl apply -f kubernetes/multitenancy-fairness.yaml"
 	@echo "  kubectl apply -f kubernetes/workload-identity.yaml"

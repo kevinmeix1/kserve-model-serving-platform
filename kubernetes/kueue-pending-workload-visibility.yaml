@@ -1,0 +1,62 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kueue-serving-pending-workload-visibility
+rules:
+  - apiGroups:
+      - visibility.kueue.x-k8s.io
+    resources:
+      - clusterqueues/pendingworkloads
+      - localqueues/pendingworkloads
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kueue-serving-pending-workload-visibility
+subjects:
+  - kind: ServiceAccount
+    name: canary-analysis-runner
+    namespace: mlops-serving-analysis
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kueue-serving-pending-workload-visibility
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kueue-serving-pending-workload-queries
+  namespace: mlops-serving-prod
+data:
+  clusterqueue-route-smoke.jsonpath: "/apis/visibility.kueue.x-k8s.io/v1beta2/clusterqueues/online-serving-flavor-queue/pendingworkloads"
+  localqueue-route-smoke.jsonpath: "/apis/visibility.kueue.x-k8s.io/v1beta2/namespaces/mlops-serving-prod/localqueues/online-route-smoke/pendingworkloads"
+  localqueue-shadow-analysis.jsonpath: "/apis/visibility.kueue.x-k8s.io/v1beta2/namespaces/mlops-serving-analysis/localqueues/shadow-analysis/pendingworkloads"
+  apf-install: "kubectl apply --server-side -f https://github.com/kubernetes-sigs/kueue/releases/download/v0.18.2/visibility-apf.yaml"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kueue-serving-pending-workload-visibility
+  namespace: mlops-serving-prod
+spec:
+  groups:
+    - name: kueue-serving-pending-workload-visibility
+      rules:
+        - alert: KueueServingAdmissionWaitHigh
+          expr: histogram_quantile(0.95, sum(rate(kueue_admission_wait_time_seconds_bucket{cluster_queue="online-serving-flavor-queue"}[10m])) by (le)) > 300
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Route smoke workload is waiting too long for Kueue admission"
+        - alert: KueueServingPendingCpuHigh
+          expr: sum(kueue_cluster_queue_resource_pending{cluster_queue=~"online-serving-flavor-queue|canary-analysis-flavor-queue|load-test-flavor-queue",resource="cpu"}) > 20
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pending serving-analysis CPU is high across Kueue ClusterQueues"
