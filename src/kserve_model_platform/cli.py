@@ -32,6 +32,7 @@ from .serving import health, predict
 from .slo import build_slo_report
 from .supply_chain import build_supply_chain_evidence
 from .tenancy import build_tenancy_report
+from .topology_placement import build_topology_placement_plan
 from .traceability import build_trace_report
 
 
@@ -154,6 +155,7 @@ def demo(output: str | Path) -> dict:
         primary_workload="online inference, shadow scoring, and canary analysis",
     )
     device_allocation = build_device_allocation_plan(root)
+    topology_placement = build_topology_placement_plan(root)
     tenancy = build_tenancy_report(root)
     identity_access = build_identity_access_report(root)
     performance_budget = build_performance_budget_report(root)
@@ -191,6 +193,7 @@ def demo(output: str | Path) -> dict:
         "cloud_migration": cloud_migration,
         "accelerator_capacity": accelerator_capacity,
         "device_allocation": device_allocation,
+        "topology_placement": topology_placement,
         "tenancy": tenancy,
         "identity_access": identity_access,
         "performance_budget": performance_budget,
@@ -231,6 +234,7 @@ def main(argv: list[str] | None = None) -> int:
         "orchestration-scorecard",
         "accelerator-plan",
         "device-plan",
+        "topology-plan",
         "tenancy-report",
         "identity-report",
         "performance-budget",
@@ -288,6 +292,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_accelerator_capacity_plan(args.output, project="KServe Model Serving Platform", primary_workload="online inference, shadow scoring, and canary analysis"), indent=2, sort_keys=True))
     elif args.command == "device-plan":
         print(json.dumps(build_device_allocation_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "topology-plan":
+        print(json.dumps(build_topology_placement_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "tenancy-report":
         print(json.dumps(build_tenancy_report(args.output), indent=2, sort_keys=True))
     elif args.command == "identity-report":

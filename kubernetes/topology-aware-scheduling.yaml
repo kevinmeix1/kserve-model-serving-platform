@@ -1,0 +1,135 @@
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: Topology
+metadata:
+  name: serving-accelerator-topology
+spec:
+  levels:
+    - nodeLabel: cloud.provider.com/topology-block
+    - nodeLabel: cloud.provider.com/topology-rack
+    - nodeLabel: kubernetes.io/hostname
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: gpu-l4-serving-tas
+spec:
+  nodeLabels:
+    accelerator: nvidia-l4
+  topologyName: serving-accelerator-topology
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: AdmissionCheck
+metadata:
+  name: serving-topology-provisioning-check
+spec:
+  controllerName: kueue.x-k8s.io/provisioning-request
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: serving-topology-aware-queue
+spec:
+  namespaceSelector: {}
+  admissionChecks:
+    - serving-topology-provisioning-check
+  resourceGroups:
+    - coveredResources: ["cpu", "memory", "nvidia.com/gpu"]
+      flavors:
+        - name: gpu-l4-serving-tas
+          resources:
+            - name: nvidia.com/gpu
+              nominalQuota: 4
+            - name: cpu
+              nominalQuota: 32
+            - name: memory
+              nominalQuota: 128Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: credit-risk-router-ha
+  namespace: mlops-serving
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: credit-risk-router
+  template:
+    metadata:
+      labels:
+        app: credit-risk-router
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: credit-risk-router
+      containers:
+        - name: router
+          image: ghcr.io/kevinmeix1/credit-risk-router@sha256:replace-with-digest
+          resources:
+            requests:
+              cpu: "500m"
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  name: large-model-profile-tas
+  namespace: mlops-serving
+  labels:
+    kueue.x-k8s.io/queue-name: canary-analysis-queue
+spec:
+  replicas: 1
+  leaderWorkerTemplate:
+    leaderTemplate:
+      metadata:
+        annotations:
+          kueue.x-k8s.io/podset-required-topology: cloud.provider.com/topology-rack
+          kueue.x-k8s.io/podset-group-name: serving-profile-group
+      spec:
+        containers:
+          - name: leader
+            image: ghcr.io/kevinmeix1/credit-risk-large-profile@sha256:replace-with-digest
+            resources:
+              requests:
+                cpu: "2"
+                memory: 4Gi
+                nvidia.com/gpu: "1"
+    size: 3
+    workerTemplate:
+      metadata:
+        annotations:
+          kueue.x-k8s.io/podset-required-topology: cloud.provider.com/topology-rack
+          kueue.x-k8s.io/podset-group-name: serving-profile-group
+      spec:
+        containers:
+          - name: worker
+            image: ghcr.io/kevinmeix1/credit-risk-large-profile@sha256:replace-with-digest
+            resources:
+              requests:
+                cpu: "2"
+                memory: 4Gi
+                nvidia.com/gpu: "1"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: serving-topology-aware-scheduling
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: serving.topology.scheduling
+      rules:
+        - alert: ServingTopologyAssignmentDelayed
+          expr: kueue_pending_workloads{cluster_queue="serving-topology-aware-queue"} > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Topology-aware serving analysis is pending; hold canary traffic at its current weight."
