@@ -63,6 +63,7 @@ def build_orchestration_scorecard(
         ("provisioning_admission_checks", _present(content, "provisioning_admission_plan.json", "ProvisioningRequestConfig", "kueue.x-k8s.io/provisioning-request") and _present(content, "online_predictor_excluded", "check-capacity.autoscaling.x-k8s.io"), "Kueue ProvisioningRequest admission confirms physical capacity for serving analysis while online predictors stay outside batch queues"),
         ("multikueue_dispatch", _present(content, "multikueue_dispatch_plan.json", "MultiKueueConfig", "MultiKueueCluster") and _present(content, "onlineServingBoundary", "status.clusterName"), "Kueue MultiKueue dispatch covers shadow replay, rollback smoke, GPU explainers, worker status sync, and online serving boundaries"),
         ("kserve_model_cache", _present(content, "model_cache_plan.json", "LocalModelNamespaceCache", "LocalModelNodeGroup") and _present(content, "oci://", "ModelDownloaded"), "KServe LocalModel cache and modelcar OCI storage gate canary and rollback cold-start risk"),
+        ("airflow_dag_bundle_versioning", _present(content, "dag_bundle_versioning_plan.json", "GitDagBundle", "dag_bundle_config_list") and _present(content, "rerun_with_latest_version=False", "rerun_with_latest_version = False"), "Airflow 3 GitDagBundle versioning preserves rollout code across canary reruns, route replay, and incident recovery"),
         ("event_driven_scaling", _present(content, "ScaledObject", "ScaledJob"), "KEDA ScaledObjects or ScaledJobs react to operational backlog"),
         ("horizontal_autoscaling", "HorizontalPodAutoscaler" in content, "HPA rules keep workers and services elastic"),
         ("opentelemetry", _present(content, "opentelemetry-collector", "OpenTelemetry"), "OTel collector config captures runtime traces and metrics"),
@@ -97,6 +98,7 @@ def build_orchestration_scorecard(
             "Kueue ProvisioningRequest AdmissionChecks for shadow analysis, GPU explainers, and rollback-smoke capacity guarantees",
             "Kueue MultiKueue for manager-to-worker dispatch of serving analysis without queueing live InferenceService predictors",
             "KServe LocalModelCache, LocalModelNodeGroup, and modelcar OCI storage for cold-start control",
+            "Airflow 3 DAG Bundles and DAG versioning for reproducible KServe rollout reruns and scheduler-managed backfills",
             "GitHub artifact attestations, SLSA provenance, and Sigstore policy-controller for supply-chain integrity",
         ],
         "next_actions": [

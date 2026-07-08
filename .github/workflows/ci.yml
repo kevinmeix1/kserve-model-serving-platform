@@ -56,6 +56,7 @@ jobs:
             echo "- Provisioning admission: .local/reports/provisioning_admission_plan.json"
             echo "- MultiKueue dispatch: .local/reports/multikueue_dispatch_plan.json"
             echo "- Model cache: .local/reports/model_cache_plan.json"
+            echo "- DAG bundle versioning: .local/reports/dag_bundle_versioning_plan.json"
             echo "- Tenant fairness: .local/reports/tenancy_fairness_report.json"
             echo "- Workload identity: .local/reports/identity_access_report.json"
             echo "- Performance budget: .local/reports/performance_budget.json"

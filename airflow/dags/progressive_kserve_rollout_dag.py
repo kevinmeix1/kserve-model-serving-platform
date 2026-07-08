@@ -69,6 +69,7 @@ if AIRFLOW_AVAILABLE:
             "on_failure_callback": notify_release_failure,
         },
         tags=["kserve", "canary", "shadow", "rollback", "kubernetes"],
+        rerun_with_latest_version=False,
     )
     def progressive_kserve_rollout():
         start = EmptyOperator(task_id="start_progressive_rollout")
