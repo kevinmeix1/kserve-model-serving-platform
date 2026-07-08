@@ -1,0 +1,194 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kserve-multikueue-runbook
+  namespace: mlops-serving
+  labels:
+    platform.openai.com/component: multikueue-dispatch
+data:
+  onlineServingBoundary: "InferenceService predictor and router pods stay outside MultiKueue batch dispatch."
+  runbook.md: |
+    MultiKueue manager cluster: serving-manager.
+    Worker clusters: serving-analysis-east, serving-analysis-west, serving-gpu-explainer.
+    Watch status.nominatedClusterNames while the Workload is pending.
+    Record status.clusterName after a worker admits the Workload.
+    Remote Jobs are labeled kueue.x-k8s.io/prebuilt-workload-name by the manager.
+    If shadow replay or rollback smoke cannot dispatch, freeze canary promotion.
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: multicluster-serving-analysis
+spec:
+  nodeLabels:
+    nodepool.platform.openai.com/fleet: multikueue-serving-analysis
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: AdmissionCheck
+metadata:
+  name: serving-multikueue
+spec:
+  controllerName: kueue.x-k8s.io/multikueue
+  parameters:
+    apiGroup: kueue.x-k8s.io
+    kind: MultiKueueConfig
+    name: serving-multikueue-config
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: MultiKueueConfig
+metadata:
+  name: serving-multikueue-config
+spec:
+  clusters:
+    - serving-analysis-east
+    - serving-analysis-west
+    - serving-gpu-explainer
+  quotaManagement: Manual
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: MultiKueueCluster
+metadata:
+  name: serving-analysis-east
+spec:
+  clusterSource:
+    kubeConfig:
+      locationType: Secret
+      location: serving-analysis-east-kubeconfig
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: MultiKueueCluster
+metadata:
+  name: serving-analysis-west
+spec:
+  clusterSource:
+    kubeConfig:
+      locationType: Secret
+      location: serving-analysis-west-kubeconfig
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: MultiKueueCluster
+metadata:
+  name: serving-gpu-explainer
+spec:
+  clusterSource:
+    kubeConfig:
+      locationType: Secret
+      location: serving-gpu-explainer-kubeconfig
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata:
+  name: serving-multikueue-analysis
+spec:
+  namespaceSelector: {}
+  queueingStrategy: BestEffortFIFO
+  admissionChecksStrategy:
+    admissionChecks:
+      - name: serving-multikueue
+  resourceGroups:
+    - coveredResources: ["cpu", "memory", "nvidia.com/gpu"]
+      flavors:
+        - name: multicluster-serving-analysis
+          resources:
+            - name: cpu
+              nominalQuota: "144"
+            - name: memory
+              nominalQuota: 704Gi
+            - name: nvidia.com/gpu
+              nominalQuota: "4"
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: LocalQueue
+metadata:
+  name: serving-multikueue-analysis
+  namespace: mlops-serving
+spec:
+  clusterQueue: serving-multikueue-analysis
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: credit-risk-shadow-replay-
+  namespace: mlops-serving
+  labels:
+    kueue.x-k8s.io/queue-name: serving-multikueue-analysis
+    kueue.x-k8s.io/priority-class: serving-release-critical
+    serving.platform.openai.com/workload: shadow-replay
+spec:
+  completionMode: Indexed
+  completions: 12
+  parallelism: 4
+  backoffLimitPerIndex: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: credit-risk-shadow-replay
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: replay
+          image: ghcr.io/kevinmeix1/kserve-analysis-runner@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          command: ["python", "-m", "kserve_model_platform.shadow_replay"]
+          env:
+            - name: KSERVE_SERVICE
+              value: credit-risk-router
+          resources:
+            requests:
+              cpu: "4"
+              memory: 12Gi
+            limits:
+              cpu: "4"
+              memory: 12Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: credit-risk-gpu-explainer-
+  namespace: mlops-serving
+  labels:
+    kueue.x-k8s.io/queue-name: serving-multikueue-analysis
+    kueue.x-k8s.io/priority-class: serving-release-critical
+    serving.platform.openai.com/workload: gpu-explainer
+spec:
+  completionMode: Indexed
+  completions: 4
+  parallelism: 2
+  backoffLimitPerIndex: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: credit-risk-gpu-explainer
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: explainer
+          image: ghcr.io/kevinmeix1/kserve-explainer@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+          command: ["python", "-m", "kserve_model_platform.explain"]
+          resources:
+            requests:
+              cpu: "8"
+              memory: 32Gi
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "8"
+              memory: 32Gi
+              nvidia.com/gpu: "1"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kserve-multikueue-dispatch-alerts
+  namespace: monitoring
+spec:
+  groups:
+    - name: kserve.multikueue-dispatch
+      rules:
+        - alert: KServeMultiKueueDispatchStalled
+          expr: histogram_quantile(0.95, sum by (le, cluster_queue) (rate(kueue_admission_checks_wait_time_seconds_bucket{cluster_queue="serving-multikueue-analysis"}[20m]))) > 1200 and kueue_pending_workloads{cluster_queue="serving-multikueue-analysis",status="active"} > 0
+          for: 20m
+          labels:
+            severity: warning
+            team: ml-platform
+          annotations:
+            summary: Serving analysis MultiKueue dispatch is stalled before a worker cluster is selected.
+            runbook_url: https://github.com/kevinmeix1/kserve-model-serving-platform/blob/main/docs/multikueue-dispatch.md
