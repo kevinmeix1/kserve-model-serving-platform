@@ -55,6 +55,7 @@ def render_artifact_index(root: str | Path, *, title: str, description: str, das
         ("Control Plane Diagnostics", "control_plane_diagnostics_plan.json", "Kubernetes v1.36 controller staleness, /statusz, /flagz, PSI, and native-histogram readiness for serving route automation."),
         ("Memory QoS", "memory_qos_plan.json", "Kubernetes v1.36 MemoryQoS, TieredReservation, cgroup v2, PSI, and memory.high guardrails for KServe serving paths."),
         ("HPA Scale To Zero", "hpa_scale_to_zero_plan.json", "Kubernetes v1.36 HPAScaleToZero for async KServe helpers with Object and External metric wakeups."),
+        ("Suspended Job Resources", "suspended_job_resources_plan.json", "Kubernetes v1.36 MutablePodResourcesForSuspendedJobs for queued KServe shadow replay, route conformance, and explainer right-sizing."),
         ("Release Admission", "release_admission_decision.json", "Fail-closed canary admission record combining rollout, SLO, queue, governance, and provenance evidence."),
         ("Tenant Fairness", "tenancy_fairness_report.json", "Serving tenant quotas, Kueue cohorts, Airflow pools, rollback reservations, and cost labels."),
         ("Workload Identity", "identity_access_report.json", "Keyless serving identities for router, predictor, canary analysis, and registry access."),

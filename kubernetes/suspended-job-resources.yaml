@@ -1,0 +1,94 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: shadow-replay-job
+  namespace: mlops-serving
+  annotations:
+    platform.mlops.dev/feature-gate: MutablePodResourcesForSuspendedJobs
+    platform.mlops.dev/resource-mutation-reason: serving-shadow-replay-quota-fit
+spec:
+  suspend: true
+  completionMode: Indexed
+  completions: 8
+  parallelism: 4
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: replayer
+          image: ghcr.io/kevinmeix1/credit-risk-shadow-replay:2026.07
+          resources:
+            requests:
+              cpu: "5"
+              memory: 12Gi
+            limits:
+              cpu: "7"
+              memory: 16Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gpu-explainer-job
+  namespace: mlops-serving
+  annotations:
+    platform.mlops.dev/feature-gate: MutablePodResourcesForSuspendedJobs
+    platform.mlops.dev/resource-mutation-reason: explainer-cache-and-gpu-fit
+spec:
+  suspend: true
+  completionMode: Indexed
+  completions: 2
+  parallelism: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: explainer
+          image: ghcr.io/kevinmeix1/credit-risk-explainer:2026.07
+          resources:
+            requests:
+              cpu: "3"
+              memory: 12Gi
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "4"
+              memory: 16Gi
+              nvidia.com/gpu: "1"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: kserve-suspended-job-resource-mutation-guard
+spec:
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        operations: ["UPDATE"]
+        resources: ["jobs"]
+  validations:
+    - expression: "!(has(oldObject) && oldObject.spec.template.spec.containers[0].resources != object.spec.template.spec.containers[0].resources && object.spec.suspend != true)"
+      message: "MutablePodResourcesForSuspendedJobs allows resource mutation only while spec.suspend is true"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kserve-suspended-job-resources
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: kserve.suspended-job-resources
+      rules:
+        - alert: KServeSuspendedJobResizeStale
+          expr: max(kserve_suspended_job_resource_patch_age_seconds{namespace="mlops-serving"}) > 900
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Suspended KServe analysis Job resource mutation has not been unsuspended or reverted
+        - alert: KServeSuspendedJobUnsuspendWithoutQuotaFit
+          expr: max(kserve_suspended_job_unsuspend_without_quota_fit{namespace="mlops-serving"}) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: KServe analysis Job was unsuspended before quota, cache, and route evidence was recorded

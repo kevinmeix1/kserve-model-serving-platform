@@ -57,6 +57,7 @@ from .serving import health, predict
 from .semantic_telemetry import build_semantic_telemetry_plan
 from .slo import build_slo_report
 from .supply_chain import build_supply_chain_evidence
+from .suspended_job_resources import build_suspended_job_resource_plan
 from .tenancy import build_tenancy_report
 from .topology_placement import build_topology_placement_plan
 from .traceability import build_trace_report
@@ -214,6 +215,7 @@ def demo(output: str | Path) -> dict:
     control_plane_diagnostics = build_control_plane_diagnostics_plan(root)
     memory_qos = build_memory_qos_plan(root)
     hpa_scale_to_zero = build_hpa_scale_to_zero_plan(root)
+    suspended_job_resources = build_suspended_job_resource_plan(root)
     supply_chain = build_supply_chain_evidence(
         root,
         project="KServe Model Serving Platform",
@@ -279,6 +281,7 @@ def demo(output: str | Path) -> dict:
         "control_plane_diagnostics": control_plane_diagnostics,
         "memory_qos": memory_qos,
         "hpa_scale_to_zero": hpa_scale_to_zero,
+        "suspended_job_resources": suspended_job_resources,
         "release_admission": release_admission,
         "artifact_index": str(artifact_index),
         "orchestration_scorecard": orchestration_scorecard,
@@ -347,6 +350,7 @@ def main(argv: list[str] | None = None) -> int:
         "control-plane-diagnostics",
         "memory-qos",
         "hpa-scale-zero",
+        "suspended-job-resources",
         "release-admission",
     ]:
         cmd = sub.add_parser(command)
@@ -464,6 +468,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_memory_qos_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "hpa-scale-zero":
         print(json.dumps(build_hpa_scale_to_zero_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "suspended-job-resources":
+        print(json.dumps(build_suspended_job_resource_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "release-admission":
         print(json.dumps(build_release_admission_decision(args.output), indent=2, sort_keys=True))
     return 0
