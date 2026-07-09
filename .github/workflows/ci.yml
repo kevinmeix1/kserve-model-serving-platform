@@ -75,6 +75,7 @@ jobs:
             echo "- Workload-aware scheduling: .local/reports/workload_aware_scheduling_plan.json"
             echo "- Runtime security: .local/reports/runtime_security_plan.json"
             echo "- Control-plane diagnostics: .local/reports/control_plane_diagnostics_plan.json"
+            echo "- Memory QoS: .local/reports/memory_qos_plan.json"
             echo "- Release admission: .local/reports/release_admission_decision.json"
             echo ""
             echo "Generated reports:"

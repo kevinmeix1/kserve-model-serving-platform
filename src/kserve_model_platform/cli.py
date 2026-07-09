@@ -30,6 +30,7 @@ from .inplace_resize import build_inplace_resize_plan
 from .inference_gateway import build_inference_gateway_plan
 from .io import read_json, write_csv, write_json
 from .kuberay_capacity import build_kuberay_capacity_plan
+from .memory_qos import build_memory_qos_plan
 from .model_cache import build_model_cache_plan
 from .models import generate_requests
 from .monitoring import build_report, evaluate_canary
@@ -210,6 +211,7 @@ def demo(output: str | Path) -> dict:
     workload_aware_scheduling = build_workload_aware_scheduling_plan(root)
     runtime_security = build_runtime_security_plan(root)
     control_plane_diagnostics = build_control_plane_diagnostics_plan(root)
+    memory_qos = build_memory_qos_plan(root)
     supply_chain = build_supply_chain_evidence(
         root,
         project="KServe Model Serving Platform",
@@ -273,6 +275,7 @@ def demo(output: str | Path) -> dict:
         "workload_aware_scheduling": workload_aware_scheduling,
         "runtime_security": runtime_security,
         "control_plane_diagnostics": control_plane_diagnostics,
+        "memory_qos": memory_qos,
         "release_admission": release_admission,
         "artifact_index": str(artifact_index),
         "orchestration_scorecard": orchestration_scorecard,
@@ -339,6 +342,7 @@ def main(argv: list[str] | None = None) -> int:
         "workload-aware-scheduling",
         "runtime-security",
         "control-plane-diagnostics",
+        "memory-qos",
         "release-admission",
     ]:
         cmd = sub.add_parser(command)
@@ -452,6 +456,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_runtime_security_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "control-plane-diagnostics":
         print(json.dumps(build_control_plane_diagnostics_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "memory-qos":
+        print(json.dumps(build_memory_qos_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "release-admission":
         print(json.dumps(build_release_admission_decision(args.output), indent=2, sort_keys=True))
     return 0

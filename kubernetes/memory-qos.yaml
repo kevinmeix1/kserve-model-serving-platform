@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kserve-memory-qos-kubelet-config
+  namespace: mlops-serving
+  labels:
+    platform.mlops.dev/control: memory-qos
+data:
+  kubelet-config.yaml: |
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    kind: KubeletConfiguration
+    featureGates:
+      MemoryQoS: true
+    memoryReservationPolicy: TieredReservation
+    memoryThrottlingFactor: 0.9
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kserve-memory-qos
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: kserve.memory-qos
+      rules:
+        - alert: KServeMemoryQoSThrottlingHigh
+          expr: max(rate(container_memory_high_events_total{namespace="mlops-serving"}[5m])) > 0.1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Memory QoS memory.high throttling is elevated for serving workloads
+        - alert: KServeChampionMemoryProtectionMissing
+          expr: max(kube_pod_container_resource_requests{namespace="mlops-serving", pod=~".*champion.*", resource="memory"}) == 0
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: Champion predictor is missing memory requests for memory.min protection
+        - alert: KServeMemoryQoSKernelVersionWarning
+          expr: max(kubelet_memory_qos_kernel_warning{node_pool=~"kserve-serving|kserve-gpu"}) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Memory QoS is enabled on a kernel below the recommended 5.9 floor
+        - alert: KServeMemoryQoSPSIPressureHigh
+          expr: max(rate(kubelet_psi_memory_some_seconds_total{node_pool=~"kserve-serving|kserve-gpu"}[5m])) > 0.2
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: Memory PSI indicates node pressure before canary rollback decisions
