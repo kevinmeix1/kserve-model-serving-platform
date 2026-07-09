@@ -24,6 +24,7 @@ from .event_driven_assets import build_event_driven_assets_plan
 from .flavor_fungibility import build_flavor_fungibility_plan
 from .gitops_release import build_gitops_plan
 from .governance import build_governance_bundle
+from .hpa_scale_to_zero import build_hpa_scale_to_zero_plan
 from .identity import build_identity_access_report
 from .indexed_job_resilience import build_indexed_job_resilience_plan
 from .inplace_resize import build_inplace_resize_plan
@@ -212,6 +213,7 @@ def demo(output: str | Path) -> dict:
     runtime_security = build_runtime_security_plan(root)
     control_plane_diagnostics = build_control_plane_diagnostics_plan(root)
     memory_qos = build_memory_qos_plan(root)
+    hpa_scale_to_zero = build_hpa_scale_to_zero_plan(root)
     supply_chain = build_supply_chain_evidence(
         root,
         project="KServe Model Serving Platform",
@@ -276,6 +278,7 @@ def demo(output: str | Path) -> dict:
         "runtime_security": runtime_security,
         "control_plane_diagnostics": control_plane_diagnostics,
         "memory_qos": memory_qos,
+        "hpa_scale_to_zero": hpa_scale_to_zero,
         "release_admission": release_admission,
         "artifact_index": str(artifact_index),
         "orchestration_scorecard": orchestration_scorecard,
@@ -343,6 +346,7 @@ def main(argv: list[str] | None = None) -> int:
         "runtime-security",
         "control-plane-diagnostics",
         "memory-qos",
+        "hpa-scale-zero",
         "release-admission",
     ]:
         cmd = sub.add_parser(command)
@@ -458,6 +462,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_control_plane_diagnostics_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "memory-qos":
         print(json.dumps(build_memory_qos_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "hpa-scale-zero":
+        print(json.dumps(build_hpa_scale_to_zero_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "release-admission":
         print(json.dumps(build_release_admission_decision(args.output), indent=2, sort_keys=True))
     return 0

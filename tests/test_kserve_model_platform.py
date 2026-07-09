@@ -23,6 +23,7 @@ from kserve_model_platform.event_driven_assets import build_event_driven_assets_
 from kserve_model_platform.flavor_fungibility import build_flavor_fungibility_plan
 from kserve_model_platform.gitops_release import build_gitops_plan
 from kserve_model_platform.governance import build_governance_bundle
+from kserve_model_platform.hpa_scale_to_zero import build_hpa_scale_to_zero_plan
 from kserve_model_platform.identity import build_identity_access_report
 from kserve_model_platform.indexed_job_resilience import build_indexed_job_resilience_plan
 from kserve_model_platform.inplace_resize import build_inplace_resize_plan
@@ -334,7 +335,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
 
         for expected in ["actions/upload-artifact@v6", "actions/attest@v4", "attestations: write", "GITHUB_STEP_SUMMARY", "make ci-verify", "concurrency"]:
             self.assertIn(expected, workflow)
-        for expected in ["ci-verify:", "index.html", "tenancy_fairness_report.json", "identity_access_report.json", "pending_workload_visibility_plan.json", "flavor_fungibility_plan.json", "cohort_fair_sharing_plan.json", "pod_resource_envelope_plan.json", "event_driven_assets_plan.json", "multi_team_readiness_plan.json", "asset_partitioning_plan.json", "dag_bundle_versioning_plan.json", "model_cache_plan.json", "multikueue_dispatch_plan.json", "provisioning_admission_plan.json", "indexed_job_resilience_plan.json", "elastic_workload_plan.json", "cost_observability_report.json", "deadline_alert_plan.json", "semantic_telemetry_plan.json", "inference_gateway_plan.json", "kuberay_capacity_plan.json", "topology_placement_plan.json", "inplace_resize_plan.json", "admin_access_diagnostics_plan.json", "advanced_device_sharing_plan.json", "resource_health_status_plan.json", "device_allocation_plan.json", "release_admission_decision.json", "runtime_security_plan.json", "control_plane_diagnostics_plan.json", "memory_qos_plan.json", "workload_aware_scheduling_plan.json", "queue_simulation.json", "performance_budget.json", "accelerator_capacity_plan.json", "orchestration_scorecard.json", "supply_chain_evidence.json", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
+        for expected in ["ci-verify:", "index.html", "tenancy_fairness_report.json", "identity_access_report.json", "pending_workload_visibility_plan.json", "flavor_fungibility_plan.json", "cohort_fair_sharing_plan.json", "pod_resource_envelope_plan.json", "event_driven_assets_plan.json", "multi_team_readiness_plan.json", "asset_partitioning_plan.json", "dag_bundle_versioning_plan.json", "model_cache_plan.json", "multikueue_dispatch_plan.json", "provisioning_admission_plan.json", "indexed_job_resilience_plan.json", "elastic_workload_plan.json", "cost_observability_report.json", "deadline_alert_plan.json", "semantic_telemetry_plan.json", "inference_gateway_plan.json", "kuberay_capacity_plan.json", "topology_placement_plan.json", "inplace_resize_plan.json", "admin_access_diagnostics_plan.json", "advanced_device_sharing_plan.json", "resource_health_status_plan.json", "device_allocation_plan.json", "release_admission_decision.json", "runtime_security_plan.json", "control_plane_diagnostics_plan.json", "memory_qos_plan.json", "hpa_scale_to_zero_plan.json", "workload_aware_scheduling_plan.json", "queue_simulation.json", "performance_budget.json", "accelerator_capacity_plan.json", "orchestration_scorecard.json", "supply_chain_evidence.json", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
             self.assertIn(expected, makefile)
 
     def test_accelerator_capacity_plan_and_kubernetes_assets_exist(self) -> None:
@@ -872,6 +873,26 @@ class KServeModelServingPlatformTest(unittest.TestCase):
         for expected in ["KubeletConfiguration", "MemoryQoS", "PrometheusRule", "KServeMemoryQoSThrottlingHigh", "KServeMemoryQoSPSIPressureHigh"]:
             self.assertIn(expected, manifest)
 
+    def test_hpa_scale_to_zero_plan_and_kubernetes_assets_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        docs = (repo / "docs" / "hpa-scale-to-zero.md").read_text(encoding="utf-8")
+        manifest = (repo / "kubernetes" / "hpa-scale-to-zero.yaml").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            report = build_hpa_scale_to_zero_plan(root)
+
+            self.assertTrue(report["passed"])
+            self.assertEqual(report["recommended_action"], "enable_hpa_scale_to_zero_for_async_serving_workers")
+            self.assertEqual(report["feature_gate"]["name"], "HPAScaleToZero")
+            self.assertTrue(all(workload["min_replicas"] == 0 for workload in report["scale_to_zero_workloads"]))
+            self.assertTrue(all(workload["metric_type"] in {"External", "Object"} for workload in report["scale_to_zero_workloads"]))
+            self.assertFalse({"credit-risk-router", "champion-predictor"} & {workload["name"] for workload in report["scale_to_zero_workloads"]})
+            self.assertTrue((root / "reports" / "hpa_scale_to_zero_plan.json").exists())
+        for expected in ["HPA Scale To Zero", "HPAScaleToZero", "minReplicas: 0", "External", "cold-start"]:
+            self.assertIn(expected, docs + manifest)
+        for expected in ["HorizontalPodAutoscaler", "autoscaling/v2", "type: Object", "KServeScaleToZeroWakeupFailed", "KServeScaleToZeroColdStartBudgetExceeded"]:
+            self.assertIn(expected, manifest)
+
     def test_tenancy_fairness_report_and_kubernetes_assets_exist(self) -> None:
         repo = Path(__file__).resolve().parents[1]
         manifest = (repo / "kubernetes" / "multitenancy-fairness.yaml").read_text(encoding="utf-8")
@@ -935,6 +956,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertIn("runtime_security_userns_kubelet_authz", names)
             self.assertIn("control_plane_freshness_diagnostics", names)
             self.assertIn("memory_qos_tiered_protection", names)
+            self.assertIn("hpa_scale_to_zero_external_metrics", names)
             self.assertIn("supply_chain_provenance", names)
             self.assertTrue((root / "reports" / "orchestration_scorecard.json").exists())
 
@@ -1005,6 +1027,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
                 "runtime_security_plan.json",
                 "control_plane_diagnostics_plan.json",
                 "memory_qos_plan.json",
+                "hpa_scale_to_zero_plan.json",
                 "release_admission_decision.json",
                 "resource_optimization.json",
                 "network_security.json",
@@ -1083,6 +1106,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue((root / "reports" / "runtime_security_plan.json").exists())
             self.assertTrue((root / "reports" / "control_plane_diagnostics_plan.json").exists())
             self.assertTrue((root / "reports" / "memory_qos_plan.json").exists())
+            self.assertTrue((root / "reports" / "hpa_scale_to_zero_plan.json").exists())
             self.assertTrue((root / "reports" / "release_admission_decision.json").exists())
             self.assertTrue((root / "reports" / "orchestration_scorecard.json").exists())
             self.assertTrue((root / "reports" / "supply_chain_evidence.json").exists())

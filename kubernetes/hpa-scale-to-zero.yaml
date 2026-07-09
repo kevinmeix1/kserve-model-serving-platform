@@ -1,0 +1,143 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kserve-hpa-scale-to-zero-feature-gate
+  namespace: mlops-serving
+  labels:
+    platform.mlops.dev/control: hpa-scale-to-zero
+data:
+  feature-gate: HPAScaleToZero
+  status: "Kubernetes v1.36 alpha; disabled by default"
+  requirement: "minReplicas: 0 requires autoscaling/v2 plus Object or External metrics"
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: shadow-replay-worker-scale-to-zero
+  namespace: mlops-serving
+  annotations:
+    platform.mlops.dev/feature-gate: HPAScaleToZero
+    platform.mlops.dev/cold-start-budget-seconds: "120"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: shadow-replay-worker
+  minReplicas: 0
+  maxReplicas: 30
+  metrics:
+    - type: External
+      external:
+        metric:
+          name: kserve_shadow_replay_queue_depth
+          selector:
+            matchLabels:
+              queue: shadow-replay
+        target:
+          type: Value
+          value: "1"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 500
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 900
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: async-explainer-worker-scale-to-zero
+  namespace: mlops-serving
+  annotations:
+    platform.mlops.dev/feature-gate: HPAScaleToZero
+    platform.mlops.dev/cold-start-budget-seconds: "90"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: async-explainer-worker
+  minReplicas: 0
+  maxReplicas: 10
+  metrics:
+    - type: External
+      external:
+        metric:
+          name: kserve_async_explainer_queue_depth
+          selector:
+            matchLabels:
+              queue: async-explainer
+        target:
+          type: Value
+          value: "1"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+    scaleDown:
+      stabilizationWindowSeconds: 600
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: route-conformance-smoke-scale-to-zero
+  namespace: mlops-serving
+  annotations:
+    platform.mlops.dev/feature-gate: HPAScaleToZero
+    platform.mlops.dev/cold-start-budget-seconds: "60"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: route-conformance-smoke
+  minReplicas: 0
+  maxReplicas: 6
+  metrics:
+    - type: Object
+      object:
+        describedObject:
+          apiVersion: v1
+          kind: Service
+          name: route-conformance-queue
+        metric:
+          name: route_conformance_backlog
+        target:
+          type: Value
+          value: "1"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+    scaleDown:
+      stabilizationWindowSeconds: 300
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kserve-hpa-scale-to-zero
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: kserve.hpa-scale-to-zero
+      rules:
+        - alert: KServeScaleToZeroWakeupFailed
+          expr: max(kserve_shadow_replay_queue_depth) > 0 and max(kube_horizontalpodautoscaler_status_desired_replicas{namespace="mlops-serving", horizontalpodautoscaler=~".*scale-to-zero"}) == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: KServe scale-to-zero helper did not wake after backlog arrived
+        - alert: KServeScaleToZeroMetricMissing
+          expr: absent(kserve_shadow_replay_queue_depth) or absent(kserve_async_explainer_queue_depth)
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: External metric required for HPAScaleToZero is missing
+        - alert: KServeScaleToZeroColdStartBudgetExceeded
+          expr: max(kserve_worker_cold_start_seconds{namespace="mlops-serving"}) > 120
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: KServe helper workload exceeded the scale-to-zero cold-start budget
