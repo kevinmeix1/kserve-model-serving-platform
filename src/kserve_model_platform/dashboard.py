@@ -130,10 +130,37 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
         .summary div:nth-last-child(-n+2) {{ border-bottom: 0; }}
         .summary span {{ display: block; color: #64748b; font-size: 12px; margin-bottom: 8px; }}
         .summary strong {{ display: block; font-size: 18px; overflow-wrap: anywhere; }}
+        .live-panel {{ border-left: 4px solid #0f766e; margin-bottom: 18px; }}
+        .live-heading {{ display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }}
+        .live-heading p {{ margin: 5px 0 0; color: #64748b; font-size: 13px; }}
+        .live-state {{ display: inline-flex; align-items: center; gap: 7px; color: #475569; font-size: 13px; font-weight: 700; white-space: nowrap; }}
+        .state-dot {{ width: 9px; height: 9px; border-radius: 50%; background: #94a3b8; }}
+        .state-dot.ready {{ background: #16a34a; box-shadow: 0 0 0 3px #dcfce7; }}
+        .state-dot.error {{ background: #dc2626; box-shadow: 0 0 0 3px #fee2e2; }}
+        .live-layout {{ display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(360px, .8fr); gap: 18px; align-items: start; }}
+        .form-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }}
+        label {{ display: block; color: #475569; font-size: 12px; font-weight: 700; }}
+        input, select {{ width: 100%; margin-top: 6px; padding: 9px 10px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; color: #0f172a; font: inherit; }}
+        input:focus, select:focus {{ outline: 2px solid #99f6e4; border-color: #0f766e; }}
+        button {{ border: 0; border-radius: 6px; padding: 10px 14px; background: #0f766e; color: white; font: inherit; font-weight: 800; cursor: pointer; }}
+        button:hover {{ background: #115e59; }}
+        button:disabled {{ background: #94a3b8; cursor: wait; }}
+        .form-actions {{ display: flex; align-items: center; gap: 12px; margin-top: 14px; }}
+        .form-message {{ color: #64748b; font-size: 12px; }}
+        .live-facts {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid #e3e9f0; border-radius: 6px; overflow: hidden; }}
+        .live-facts div {{ padding: 11px 12px; min-height: 68px; background: #f8fafc; border-right: 1px solid #e3e9f0; border-bottom: 1px solid #e3e9f0; }}
+        .live-facts div:nth-child(2n) {{ border-right: 0; }}
+        .live-facts div:nth-last-child(-n+2) {{ border-bottom: 0; }}
+        .live-facts span {{ display: block; color: #64748b; font-size: 11px; margin-bottom: 7px; }}
+        .live-facts strong {{ display: block; color: #0f172a; font-size: 15px; overflow-wrap: anywhere; }}
+        .live-results {{ margin-top: 16px; overflow-x: auto; }}
+        .live-results table {{ min-width: 760px; }}
+        .empty-result {{ color: #64748b; text-align: center; }}
         @media (max-width: 900px) {{
           header {{ padding: 22px 18px; }}
           main {{ padding: 18px; }}
-          .layout {{ grid-template-columns: 1fr; }}
+          .layout, .live-layout {{ grid-template-columns: 1fr; }}
+          .form-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
           .panel {{ max-width: 100%; overflow-x: auto; }}
           .canary-table {{ min-width: 520px; }}
           .deployment-table {{ min-width: 720px; }}
@@ -143,6 +170,9 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
         @media (max-width: 600px) {{
           .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
           .grid .metric:last-child {{ grid-column: 1 / -1; }}
+          .form-grid, .live-facts {{ grid-template-columns: 1fr; }}
+          .live-facts div {{ border-right: 0; }}
+          .live-heading {{ align-items: flex-start; flex-direction: column; }}
         }}
       </style>
     </head>
@@ -158,6 +188,34 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
           <div class="metric"><span>Canary status</span><strong>{badge(decision.get('passed', False))}</strong></div>
           <div class="metric"><span>Latency p95</span><strong>{esc(report.get('latency_ms', {}).get('p95'))} ms</strong></div>
           <div class="metric"><span>Serving protocol</span><strong>Open Inference V2</strong></div>
+        </section>
+        <section class="panel live-panel" data-testid="inference-lab">
+          <div class="live-heading">
+            <div><h2>Live Inference Lab</h2><p>Score a request against the running V2 service and inspect routing evidence.</p></div>
+            <div class="live-state"><span id="statusDot" class="state-dot"></span><span id="statusText">Connecting</span></div>
+          </div>
+          <div class="live-layout">
+            <form id="inferenceForm">
+              <div class="form-grid">
+                <label>Product<select id="product"><option value="card">Card</option><option value="loan">Loan</option><option value="mortgage">Mortgage</option></select></label>
+                <label>Income<input id="income" type="number" min="1000" max="1000000" step="1000" value="58000"></label>
+                <label>Debt ratio<input id="debtRatio" type="number" min="0" max="1" step="0.01" value="0.72"></label>
+                <label>Delinquencies<input id="delinquencies" type="number" min="0" max="20" step="1" value="2"></label>
+                <label>Utilization<input id="utilization" type="number" min="0" max="1" step="0.01" value="0.84"></label>
+                <label>Employment years<input id="employmentYears" type="number" min="0" max="60" step="0.1" value="2.4"></label>
+              </div>
+              <div class="form-actions"><button id="scoreButton" type="submit">Run inference</button><span id="formMessage" class="form-message">Uses a unique idempotency key for each request.</span></div>
+            </form>
+            <div class="live-facts" aria-live="polite">
+              <div><span>Snapshot generation</span><strong id="snapshotGeneration">not connected</strong></div>
+              <div><span>Traffic split</span><strong id="trafficSplit">not connected</strong></div>
+              <div><span>Ledger requests</span><strong id="ledgerRequests">0</strong></div>
+              <div><span>Detached workers</span><strong id="detachedWorkers">0</strong></div>
+            </div>
+          </div>
+          <div class="live-results">
+            <table><thead><tr><th>Request</th><th>Route</th><th>Model</th><th>Risk score</th><th>Band</th><th>Latency</th><th>Replay</th></tr></thead><tbody id="liveResultRows"><tr id="emptyResult"><td class="empty-result" colspan="7">Run an inference to create live evidence.</td></tr></tbody></table>
+          </div>
         </section>
         <section class="layout">
           <div>
@@ -224,6 +282,85 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
           </div>
         </section>
       </main>
+      <script>
+        const byId = (id) => document.getElementById(id);
+        const value = (id) => Number(byId(id).value);
+        const tensor = (name, datatype, item) => ({{name, datatype, shape: [1], data: [item]}});
+        const outputValue = (payload, name) => {{
+          const output = (payload.outputs || []).find((item) => item.name === name);
+          return output && output.data ? output.data[0] : "n/a";
+        }};
+
+        async function refreshConsoleStatus() {{
+          const dot = byId("statusDot");
+          try {{
+            const response = await fetch("/api/console/status", {{cache: "no-store"}});
+            if (!response.ok) throw new Error("status " + response.status);
+            const state = await response.json();
+            dot.className = "state-dot ready";
+            byId("statusText").textContent = "Runtime ready";
+            byId("snapshotGeneration").textContent = state.snapshot.generation;
+            byId("trafficSplit").textContent = "champion " + (100 - state.snapshot.challenger_percent) + "% / challenger " + state.snapshot.challenger_percent + "%";
+            byId("ledgerRequests").textContent = state.ledger.completed_requests;
+            byId("detachedWorkers").textContent = state.runtime.detached_workers;
+          }} catch (error) {{
+            dot.className = "state-dot error";
+            byId("statusText").textContent = "Start make api-run for live mode";
+          }}
+        }}
+
+        byId("inferenceForm").addEventListener("submit", async (event) => {{
+          event.preventDefault();
+          const button = byId("scoreButton");
+          const message = byId("formMessage");
+          const requestId = "judge-" + Date.now();
+          const payload = {{
+            id: requestId,
+            inputs: [
+              tensor("customer_id", "BYTES", "portfolio-review"),
+              tensor("product", "BYTES", byId("product").value),
+              tensor("income", "FP64", value("income")),
+              tensor("debt_ratio", "FP64", value("debtRatio")),
+              tensor("delinquencies", "INT64", value("delinquencies")),
+              tensor("utilization", "FP64", value("utilization")),
+              tensor("employment_years", "FP64", value("employmentYears"))
+            ]
+          }};
+          button.disabled = true;
+          message.textContent = "Scoring against the live model router...";
+          const started = performance.now();
+          try {{
+            const response = await fetch("/v2/models/credit-risk-router/infer", {{
+              method: "POST",
+              headers: {{"Content-Type": "application/json", "X-Request-ID": requestId}},
+              body: JSON.stringify(payload)
+            }});
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || "inference failed");
+            const latency = (performance.now() - started).toFixed(1) + " ms";
+            const row = document.createElement("tr");
+            [requestId, outputValue(result, "selected_alias"), outputValue(result, "model_version"), outputValue(result, "risk_score"), outputValue(result, "risk_band"), latency, String(result.parameters.idempotent_replay)].forEach((item) => {{
+              const cell = document.createElement("td");
+              cell.textContent = item;
+              row.appendChild(cell);
+            }});
+            const empty = byId("emptyResult");
+            if (empty) empty.remove();
+            const rows = byId("liveResultRows");
+            rows.prepend(row);
+            while (rows.children.length > 8) rows.lastElementChild.remove();
+            message.textContent = "Completed with snapshot " + result.parameters.snapshot_generation + ".";
+            await refreshConsoleStatus();
+          }} catch (error) {{
+            message.textContent = "Request failed: " + error.message;
+          }} finally {{
+            button.disabled = false;
+          }}
+        }});
+
+        refreshConsoleStatus();
+        window.setInterval(refreshConsoleStatus, 10000);
+      </script>
     </body>
     </html>
     """

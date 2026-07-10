@@ -107,6 +107,32 @@ class ServingApiTest(unittest.TestCase):
                 self.assertTrue(response.headers["x-model-version"])
                 self.assertTrue(response.headers["x-snapshot-generation"])
 
+    def test_console_status_exposes_bounded_runtime_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with TestClient(self.app_for(Path(tmp))) as client:
+                initial = client.get("/api/console/status")
+                prediction = client.post(
+                    "/v2/models/credit-risk-router/infer",
+                    json=inference_payload("console-evidence"),
+                )
+                status = client.get("/api/console/status")
+
+            self.assertEqual(initial.status_code, 200)
+            self.assertEqual(initial.json()["ledger"]["completed_requests"], 0)
+            self.assertEqual(prediction.status_code, 200)
+            self.assertEqual(status.status_code, 200)
+            payload = status.json()
+            self.assertTrue(payload["ready"])
+            self.assertEqual(payload["ledger"]["completed_requests"], 1)
+            self.assertEqual(payload["ledger"]["active_claims"], 0)
+            self.assertEqual(
+                payload["ledger"]["recent"][0]["request_id"],
+                "console-evidence",
+            )
+            self.assertNotIn("response_json", payload["ledger"]["recent"][0])
+            self.assertEqual(payload["runtime"]["detached_workers"], 0)
+            self.assertTrue(payload["snapshot"]["generation"])
+
     def test_idempotency_survives_application_restart_and_rejects_key_reuse(
         self,
     ) -> None:

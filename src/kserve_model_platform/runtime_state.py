@@ -324,6 +324,38 @@ class PredictionLedger:
                 """
             )
 
+    def stats(self, *, recent_limit: int = 8) -> dict[str, Any]:
+        """Return bounded, payload-free evidence for the operator console."""
+        if recent_limit < 0 or recent_limit > 100:
+            raise ValueError("recent limit must be between 0 and 100")
+        with self._connect() as connection:
+            completed = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM inference_requests"
+                ).fetchone()[0]
+            )
+            active_claims = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM inference_claims WHERE lease_expires_at > ?",
+                    (time.time(),),
+                ).fetchone()[0]
+            )
+            rows = connection.execute(
+                """
+                SELECT request_id, model_generation, created_at
+                FROM inference_requests
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (recent_limit,),
+            ).fetchall()
+        return {
+            "completed_requests": completed,
+            "active_claims": active_claims,
+            "journal_mode": "WAL",
+            "recent": [dict(row) for row in rows],
+        }
+
     @staticmethod
     def _replay(response_json: str) -> dict:
         response = json.loads(response_json)

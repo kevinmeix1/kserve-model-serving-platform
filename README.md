@@ -8,6 +8,8 @@ The deterministic demo is local-first and fast to run. A containerized FastAPI r
 
 ![KServe serving dashboard](docs/screenshots/dashboard.png)
 
+[Watch the narrated judge demo](docs/demo/kserve-judge-demo.mp4) or follow the [five-minute demo runbook](docs/judge-demo.md). A verified mobile capture is available at [docs/screenshots/dashboard-mobile.png](docs/screenshots/dashboard-mobile.png).
+
 ## What This Demonstrates
 
 - Runnable KServe Open Inference Protocol V2 HTTP runtime
@@ -24,6 +26,8 @@ The deterministic demo is local-first and fast to run. A containerized FastAPI r
 - Request validation with a documented prediction contract
 - Idempotent prediction handling by `request_id`
 - Structured prediction logs
+- Interactive inference lab backed by the live Open Inference V2 endpoint
+- Payload-free console status API for snapshot, ledger, and worker evidence
 - Latency, error rate, throughput, route mix, and score distribution monitoring
 - Canary promotion gates
 - Model rollback to previous champion
@@ -73,7 +77,9 @@ make demo
 make api-run
 ```
 
-In another terminal, run `make api-smoke`. The container path is `make compose-up`; it serves the dashboard at `http://127.0.0.1:8080/dashboard` and the API contract at `/docs`.
+Open `http://127.0.0.1:8080/dashboard` while `make api-run` is active. The Live Inference Lab submits a real V2 request, shows champion/challenger routing, model version, risk score, browser-observed latency, snapshot generation, and idempotency evidence. The runtime status strip reads the bounded `/api/console/status` endpoint; it exposes operational counts and identifiers but no feature payloads or prediction bodies.
+
+In another terminal, run `make api-smoke`. The container path is `make compose-up`; it serves the same interactive dashboard at `http://127.0.0.1:8080/dashboard` and the API contract at `/docs`.
 
 ## Commands
 

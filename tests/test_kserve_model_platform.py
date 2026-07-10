@@ -1159,6 +1159,10 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue((root / "registry" / "credit-risk" / "aliases.json").exists())
             self.assertTrue((root / "deployments" / "kserve_state.json").exists())
             self.assertTrue((root / "reports" / "kserve_serving_dashboard.html").exists())
+            dashboard = (root / "reports" / "kserve_serving_dashboard.html").read_text()
+            self.assertIn("Live Inference Lab", dashboard)
+            self.assertIn('id="inferenceForm"', dashboard)
+            self.assertIn('/api/console/status', dashboard)
             self.assertFalse((root / "reports" / "governance_evidence_bundle.json").exists())
 
     def test_demo_writes_dashboard_and_passes_canary(self) -> None:

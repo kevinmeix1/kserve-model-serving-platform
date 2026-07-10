@@ -384,6 +384,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "ready": True,
         }
 
+    @app.get("/api/console/status", include_in_schema=False)
+    async def console_status() -> dict:
+        """Expose bounded operational evidence without leaking prediction payloads."""
+        snapshot = snapshot_or_503()
+        return {
+            "ready": True,
+            "snapshot": {
+                "generation": snapshot.generation,
+                "champion": snapshot.champion,
+                "challenger": snapshot.challenger,
+                "challenger_percent": snapshot.challenger_percent,
+                "shadow_enabled": snapshot.shadow_enabled,
+                "loaded_at": snapshot.loaded_at,
+                "last_reload_error": manager.last_reload_error,
+            },
+            "ledger": ledger.stats(),
+            "runtime": {
+                "max_concurrency": settings.max_concurrency,
+                "max_batch_size": settings.max_batch_size,
+                "request_limit_bytes": settings.max_request_bytes,
+                "detached_workers": len(detached_workers),
+            },
+        }
+
     def _defer_worker_release(
         worker: asyncio.Task[tuple[dict, bool]],
         *,
