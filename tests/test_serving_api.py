@@ -271,7 +271,7 @@ class ServingApiTest(unittest.TestCase):
                     "/v2/models/credit-risk-router/infer",
                     json=inference_payload("single-flight"),
                 )
-                self.assertTrue(started.is_set())
+                self.assertTrue(started.wait(timeout=1.0))
                 self.assertEqual(first.status_code, 504)
 
                 in_progress = client.post(
