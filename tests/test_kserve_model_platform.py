@@ -20,6 +20,7 @@ from kserve_model_platform.control_plane_diagnostics import build_control_plane_
 from kserve_model_platform.constrained_impersonation import build_constrained_impersonation_plan
 from kserve_model_platform.cost_observability import build_cost_observability_report
 from kserve_model_platform.dag_bundle_versioning import build_dag_bundle_versioning_plan
+from kserve_model_platform.demo_cockpit import build_judge_demo_cockpit
 from kserve_model_platform.deadline_alerts import build_deadline_alert_plan
 from kserve_model_platform.disaster_recovery import build_disaster_recovery_plan
 from kserve_model_platform.device_allocation import build_device_allocation_plan
@@ -377,7 +378,7 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             "actions/attest@v4",
         ]:
             self.assertNotIn(mutable_ref, workflow)
-        for expected in ["ci-verify:", "index.html", "operational_readiness_review.json", "tenancy_fairness_report.json", "identity_access_report.json", "pending_workload_visibility_plan.json", "flavor_fungibility_plan.json", "cohort_fair_sharing_plan.json", "pod_resource_envelope_plan.json", "event_driven_assets_plan.json", "multi_team_readiness_plan.json", "asset_partitioning_plan.json", "dag_bundle_versioning_plan.json", "model_cache_plan.json", "multikueue_dispatch_plan.json", "provisioning_admission_plan.json", "indexed_job_resilience_plan.json", "elastic_workload_plan.json", "cost_observability_report.json", "deadline_alert_plan.json", "semantic_telemetry_plan.json", "llm_inference_readiness_plan.json", "transformer_explainer_readiness_plan.json", "inference_gateway_plan.json", "kuberay_capacity_plan.json", "topology_placement_plan.json", "inplace_resize_plan.json", "admin_access_diagnostics_plan.json", "advanced_device_sharing_plan.json", "resource_health_status_plan.json", "device_allocation_plan.json", "release_admission_decision.json", "runtime_security_plan.json", "control_plane_diagnostics_plan.json", "memory_qos_plan.json", "hpa_scale_to_zero_plan.json", "suspended_job_resources_plan.json", "constrained_impersonation_plan.json", "workload_aware_scheduling_plan.json", "queue_simulation.json", "performance_budget.json", "accelerator_capacity_plan.json", "orchestration_scorecard.json", "supply_chain_evidence.json", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
+        for expected in ["ci-verify:", "index.html", "operational_readiness_review.json", "judge_demo_cockpit.html", "judge_demo_cockpit_manifest.json", "tenancy_fairness_report.json", "identity_access_report.json", "pending_workload_visibility_plan.json", "flavor_fungibility_plan.json", "cohort_fair_sharing_plan.json", "pod_resource_envelope_plan.json", "event_driven_assets_plan.json", "multi_team_readiness_plan.json", "asset_partitioning_plan.json", "dag_bundle_versioning_plan.json", "model_cache_plan.json", "multikueue_dispatch_plan.json", "provisioning_admission_plan.json", "indexed_job_resilience_plan.json", "elastic_workload_plan.json", "cost_observability_report.json", "deadline_alert_plan.json", "semantic_telemetry_plan.json", "llm_inference_readiness_plan.json", "transformer_explainer_readiness_plan.json", "inference_gateway_plan.json", "kuberay_capacity_plan.json", "topology_placement_plan.json", "inplace_resize_plan.json", "admin_access_diagnostics_plan.json", "advanced_device_sharing_plan.json", "resource_health_status_plan.json", "device_allocation_plan.json", "release_admission_decision.json", "runtime_security_plan.json", "control_plane_diagnostics_plan.json", "memory_qos_plan.json", "hpa_scale_to_zero_plan.json", "suspended_job_resources_plan.json", "constrained_impersonation_plan.json", "workload_aware_scheduling_plan.json", "queue_simulation.json", "performance_budget.json", "accelerator_capacity_plan.json", "orchestration_scorecard.json", "supply_chain_evidence.json", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
             self.assertIn(expected, makefile)
 
     def test_operational_readiness_review_aggregates_serving_evidence(self) -> None:
@@ -391,6 +392,22 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertIn("reports/rollout_control_plan.json", review["operator_review_packet"])
             self.assertTrue(any(check["name"] == "progressive_delivery_decisioned" for check in review["checks"]))
             self.assertTrue((root / "reports" / "operational_readiness_review.json").exists())
+
+    def test_judge_demo_cockpit_links_serving_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = demo(root)
+            cockpit = build_judge_demo_cockpit(
+                root,
+                project_name="KServe Model Serving Platform",
+                primary_dashboard="kserve_serving_dashboard.html",
+                demo_video="../../docs/demo/kserve-judge-demo.mp4",
+            )
+            html = (root / "reports" / "judge_demo_cockpit.html").read_text(encoding="utf-8")
+            self.assertEqual(result["judge_demo_cockpit"]["scenario_count"], 4)
+            self.assertGreaterEqual(cockpit["evidence_count"], 8)
+            self.assertIn("KServe Model Serving Platform", html)
+            self.assertIn("Reviewable Evidence", html)
 
     def test_accelerator_capacity_plan_and_kubernetes_assets_exist(self) -> None:
         repo = Path(__file__).resolve().parents[1]

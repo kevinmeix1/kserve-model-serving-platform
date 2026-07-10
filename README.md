@@ -72,7 +72,15 @@ Open the generated dashboard:
 
 ```bash
 open .local/reports/kserve_serving_dashboard.html
+open .local/reports/judge_demo_cockpit.html
 ```
+
+The judge demo cockpit is the fastest portfolio review path: it links the
+serving dashboard, narrated video, operational readiness packet, and generated
+evidence artifacts behind interactive release, observability, governance, and
+operator-handoff filters.
+
+![Judge demo cockpit](docs/screenshots/dashboard-judge-cockpit.jpg)
 
 To run the actual HTTP serving boundary:
 

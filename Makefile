@@ -255,6 +255,8 @@ ci-verify:
 	test -f .local/reports/ai_workload_telemetry_plan.json
 	test -f .local/reports/release_admission_decision.json
 	test -f .local/reports/operational_readiness_review.json
+	test -f .local/reports/judge_demo_cockpit.html
+	test -f .local/reports/judge_demo_cockpit_manifest.json
 	test -f .local/supply-chain/subject.checksums.txt
 	python3 -m json.tool .local/reports/governance_evidence_bundle.json >/dev/null
 	python3 -m json.tool .local/reports/slo_error_budget.json >/dev/null
@@ -303,6 +305,7 @@ ci-verify:
 	python3 -m json.tool .local/reports/ai_workload_telemetry_plan.json >/dev/null
 	python3 -m json.tool .local/reports/release_admission_decision.json >/dev/null
 	python3 -m json.tool .local/reports/operational_readiness_review.json >/dev/null
+	python3 -m json.tool .local/reports/judge_demo_cockpit_manifest.json >/dev/null
 
 promote:
 	PYTHONPATH=src python3 -m kserve_model_platform promote --output .local
