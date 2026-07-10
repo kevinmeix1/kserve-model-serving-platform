@@ -90,13 +90,18 @@ def render_dashboard(
     rollout_plan: dict | None = None,
     inference_gateway_plan: dict | None = None,
     semantic_telemetry_plan: dict | None = None,
+    llm_readiness_plan: dict | None = None,
 ) -> Path:
     rollout_plan = rollout_plan or {}
     inference_gateway_plan = inference_gateway_plan or {}
     semantic_telemetry_plan = semantic_telemetry_plan or {}
+    llm_readiness_plan = llm_readiness_plan or {}
     rollout_analysis = rollout_plan.get("analysis", {})
     genai_rollout = semantic_telemetry_plan.get("genai_rollout_metrics", {})
     genai_metrics = {item.get("name"): item for item in genai_rollout.get("metrics", [])}
+    llm_contract = llm_readiness_plan.get("serving_contract", {})
+    llm_routing = llm_readiness_plan.get("routing", {})
+    llm_models = llm_readiness_plan.get("models", [])
     check_rows = [
         {
             "check": LABELS.get(check["name"], check["name"]),
@@ -306,6 +311,17 @@ def render_dashboard(
                 <div><span>Prefix cache hit</span><strong>{esc(genai_metrics.get('prefix_cache_hit_ratio', {}).get('observed', 'n/a'))}</strong></div>
                 <div><span>Groundedness p05</span><strong>{esc(genai_metrics.get('groundedness_score_p05', {}).get('observed', 'n/a'))}</strong></div>
                 <div><span>Analysis</span><strong>{compact_label(genai_rollout.get('analysis_template', 'not planned'))}</strong></div>
+              </div>
+            </div>
+            <div class="panel">
+              <h2>LLM Inference Readiness</h2>
+              <div class="summary">
+                <div><span>Serving API</span><strong>{compact_label(llm_contract.get('api', 'not planned'))}</strong></div>
+                <div><span>Runtime</span><strong>{compact_label(llm_contract.get('runtime', 'not planned'))}</strong></div>
+                <div><span>Gateway</span><strong>{compact_label(llm_contract.get('gateway', 'not planned'))}</strong></div>
+                <div><span>Artifact format</span><strong>{compact_label(llm_contract.get('artifact_format', 'not planned'))}</strong></div>
+                <div><span>Routing SLOs</span><strong>{esc(llm_routing.get('passed_classes', 0))}/{esc(llm_routing.get('request_classes', 0))}</strong></div>
+                <div><span>Prefill/decode replicas</span><strong>{esc(sum(item.get('prefill_replicas', 0) for item in llm_models))}/{esc(sum(item.get('decode_replicas', 0) for item in llm_models))}</strong></div>
               </div>
             </div>
             <div class="panel">

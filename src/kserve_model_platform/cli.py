@@ -33,6 +33,7 @@ from .inplace_resize import build_inplace_resize_plan
 from .inference_gateway import build_inference_gateway_plan
 from .io import read_json, write_csv, write_json
 from .kuberay_capacity import build_kuberay_capacity_plan
+from .llm_inference_readiness import build_llm_inference_readiness_plan
 from .memory_qos import build_memory_qos_plan
 from .model_cache import build_model_cache_plan
 from .models import generate_requests
@@ -123,6 +124,8 @@ def monitor(output: str | Path) -> dict:
     inference_gateway_plan = read_json(inference_gateway_path) if inference_gateway_path.exists() else None
     semantic_telemetry_path = root / "reports" / "semantic_telemetry_plan.json"
     semantic_telemetry_plan = read_json(semantic_telemetry_path) if semantic_telemetry_path.exists() else build_semantic_telemetry_plan(root)
+    llm_readiness_path = root / "reports" / "llm_inference_readiness_plan.json"
+    llm_readiness = read_json(llm_readiness_path) if llm_readiness_path.exists() else None
     dashboard = render_dashboard(
         root / "reports" / "kserve_serving_dashboard.html",
         deployment=deployment,
@@ -132,6 +135,7 @@ def monitor(output: str | Path) -> dict:
         rollout_plan=rollout_plan,
         inference_gateway_plan=inference_gateway_plan,
         semantic_telemetry_plan=semantic_telemetry_plan,
+        llm_readiness_plan=llm_readiness,
     )
     return {"report": report, "decision": decision, "rollout_plan": rollout_plan, "dashboard": str(dashboard)}
 
@@ -212,6 +216,7 @@ def demo(output: str | Path) -> dict:
     kuberay_capacity = build_kuberay_capacity_plan(root)
     inference_gateway = build_inference_gateway_plan(root)
     semantic_telemetry = build_semantic_telemetry_plan(root)
+    llm_readiness = build_llm_inference_readiness_plan(root)
     render_dashboard(
         root / "reports" / "kserve_serving_dashboard.html",
         deployment=deployment,
@@ -221,6 +226,7 @@ def demo(output: str | Path) -> dict:
         rollout_plan=monitoring["rollout_plan"],
         inference_gateway_plan=inference_gateway,
         semantic_telemetry_plan=semantic_telemetry,
+        llm_readiness_plan=llm_readiness,
     )
     deadline_alerts = build_deadline_alert_plan(root)
     cost_observability = build_cost_observability_report(root)
@@ -290,6 +296,7 @@ def demo(output: str | Path) -> dict:
         "kuberay_capacity": kuberay_capacity,
         "inference_gateway": inference_gateway,
         "semantic_telemetry": semantic_telemetry,
+        "llm_readiness": llm_readiness,
         "deadline_alerts": deadline_alerts,
         "cost_observability": cost_observability,
         "elastic_workload": elastic_workload,
@@ -362,6 +369,7 @@ def main(argv: list[str] | None = None) -> int:
         "kuberay-plan",
         "inference-gateway-plan",
         "semantic-telemetry-plan",
+        "llm-inference-readiness",
         "deadline-alerts-plan",
         "cost-observability",
         "elastic-workload-plan",
@@ -460,6 +468,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_inference_gateway_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "semantic-telemetry-plan":
         print(json.dumps(build_semantic_telemetry_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "llm-inference-readiness":
+        print(json.dumps(build_llm_inference_readiness_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "deadline-alerts-plan":
         print(json.dumps(build_deadline_alert_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "cost-observability":
