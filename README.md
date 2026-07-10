@@ -135,6 +135,8 @@ For OpenTelemetry-style runtime traces, see [observability and tracing](docs/obs
 
 For serving-specific pod resource, DRA, Gateway route, and model identity telemetry contracts, see [AI workload telemetry readiness](docs/ai-workload-telemetry.md).
 
+For the operator-facing packet that combines release admission, SLO burn, rollout, provenance, telemetry, and performance evidence, see [operational readiness review](docs/operational-readiness-review.md).
+
 For controlled failure injection and recovery objectives, see [resilience and chaos drills](docs/resilience-chaos.md).
 
 For workload right-sizing, HPA/VPA guardrails, and Airflow pool sizing, see [resource optimization](docs/resource-optimization.md).

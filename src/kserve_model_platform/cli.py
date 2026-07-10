@@ -43,6 +43,7 @@ from .multi_team_readiness import build_multi_team_readiness_plan
 from .multikueue_dispatch import build_multikueue_dispatch_plan
 from .network_security import build_network_security_report
 from .orchestration_scorecard import build_orchestration_scorecard
+from .operational_readiness import build_operational_readiness_review
 from .pending_workload_visibility import build_pending_workload_visibility_plan
 from .policy_audit import audit_platform_policy
 from .performance_budget import build_performance_budget_report
@@ -281,6 +282,7 @@ def demo(output: str | Path) -> dict:
         namespace="mlops-serving",
     )
     release_admission = build_release_admission_decision(root)
+    operational_readiness = build_operational_readiness_review(root)
     artifact_index = render_artifact_index(
         root,
         title="KServe Model Serving Platform",
@@ -345,6 +347,7 @@ def demo(output: str | Path) -> dict:
         "constrained_impersonation": constrained_impersonation,
         "ai_workload_telemetry": ai_workload_telemetry,
         "release_admission": release_admission,
+        "operational_readiness": operational_readiness,
         "artifact_index": str(artifact_index),
         "orchestration_scorecard": orchestration_scorecard,
         "supply_chain": supply_chain,
