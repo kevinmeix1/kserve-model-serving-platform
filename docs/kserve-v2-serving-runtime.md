@@ -48,15 +48,46 @@ This is a local analogue of resolving an MLflow alias to an immutable artifact d
 
 Inference request IDs are persisted in a SQLite WAL ledger with a unique key and canonical payload hash. Reusing the same ID and payload returns the original response, including after a process restart. Reusing the ID with a different payload returns HTTP `409`.
 
+Before scoring, the ledger also writes a single-flight execution claim. A same-ID
+retry while that claim is active returns `409`, `Retry-After`, and
+`X-Inference-Execution: continuing` without invoking the model again. Claims
+carry a lease so a process crash cannot block a request ID forever. After
+`IDEMPOTENCY_CLAIM_TTL_SECONDS`, another worker may recover the claim; an expired
+owner cannot overwrite the recovery owner's committed response. The TTL must be
+longer than the worst expected model execution, not merely the HTTP response
+deadline.
+
 The local ledger demonstrates the transaction boundary but is not a multi-pod database. The custom `InferenceService` therefore fixes this implementation at one replica, disables KServe-managed autoscaling in Standard mode, and records the shared-store requirement as a scaling blocker. A production deployment should use a shared low-latency store such as Redis or Postgres, define retention, decide whether idempotency is global or tenant-scoped, and only then raise `maxReplicas` and enable HPA or KEDA.
 
 The server also enforces:
 
 - a bounded in-process concurrency semaphore
 - a short queue-wait budget with `503` and `Retry-After`
-- an end-to-end inference deadline with `504`
+- a model-execution deadline with `504`, `Retry-After`, and an explicit continuing-execution header; the request-duration metric separately covers the full admitted HTTP path
 - one Uvicorn worker per pod so Kubernetes, rather than local process workers, owns horizontal scaling
 - JSON access and snapshot-reload logs without request features or customer identifiers
+
+### Deadline And Cancellation Semantics
+
+`asyncio.to_thread()` cannot stop a Python worker that has already begun running.
+The runtime therefore shields the worker from the HTTP timeout and retains its
+semaphore lease until the worker actually finishes. A timed-out client receives
+`X-Inference-Execution: continuing` and must retry with the same request ID. The
+SQLite claim rejects retries while work is active, then the response ledger
+returns the eventual result.
+
+Releasing the lease at response timeout would make the concurrency gauge and
+overload control incorrect while abandoned threads continued to consume CPU.
+The runtime instead exposes:
+
+- `kserve_inference_detached_workers{model_name,reason}`
+- `kserve_inference_detached_completions_total{model_name,reason,outcome}`
+
+Client disconnects use the same lease path. During shutdown, the lifespan hook
+waits for detached workers up to `INFERENCE_SHUTDOWN_GRACE_SECONDS`; Kubernetes'
+termination grace remains the outer hard bound. This is cooperative accounting,
+not forceful computation cancellation. Workloads that require hard cancellation
+should use a process boundary or a model runtime with native cancellation.
 
 ## Probes And Failure Semantics
 
@@ -107,9 +138,22 @@ Run `docker compose --profile observability up --build --wait` to include Promet
 - atomic last-known-good behavior during promotion
 - malformed tensors and batch limits
 - fail-closed cold-start readiness
+- timeout overrun, retained capacity, overload rejection, and eventual replay
+- active single-flight rejection and stale execution-claim recovery
 - metrics without customer identifiers
 
 GitHub Actions also builds the container, starts the Compose stack, waits for health, and executes the HTTP smoke test against the running image.
+
+`make package-smoke` builds the wheel without isolation from explicitly pinned
+`build`, `setuptools`, and `wheel` versions, imports it under Python's isolated
+mode with site packages disabled, and verifies that package metadata, the Python
+package version, and the V2 server version agree. The runtime image only uses
+these entries as constraints; build tools are not installed into the image.
+
+`make verify-serving-lock` compares the complete contract environment against
+`requirements-serving.lock`. It fails on an unpinned transitive distribution,
+a missing lock entry, or a version mismatch; `pip check` remains a separate
+dependency-compatibility gate.
 
 `make kserve-schema-contract` downloads the pinned KServe `v0.18.0` `InferenceService` CRD and validates the custom runtime manifest against its published OpenAPI schema. This catches attractive-looking but unsupported CRD fields before cluster deployment.
 
@@ -122,4 +166,7 @@ This is a production-style portfolio implementation, not a hosted production ser
 - [KServe Open Inference Protocol V2](https://kserve.github.io/website/docs/concepts/architecture/data-plane/v2-protocol)
 - [KServe Python serving runtime SDK](https://kserve.github.io/website/docs/reference/python-runtime-sdk)
 - [KServe predictive serving runtimes](https://kserve.github.io/website/docs/model-serving/predictive-inference/frameworks/overview)
+- [KServe REST client timeout and retry semantics](https://kserve.github.io/website/docs/reference/inference-client/inference-rest-client)
+- [Python 3.12 task cancellation, shielding, and timeouts](https://docs.python.org/3.12/library/asyncio-task.html)
 - [Kubernetes liveness, readiness, and startup probes](https://kubernetes.io/docs/concepts/workloads/pods/probes/)
+- [Kubernetes pod and endpoint termination flow](https://kubernetes.io/docs/tutorials/services/pods-and-endpoint-termination-flow/)

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
+from kserve_model_platform import __version__
 from kserve_model_platform.accelerator_plan import build_accelerator_capacity_plan
 from kserve_model_platform.admin_access_diagnostics import build_admin_access_diagnostic_plan
 from kserve_model_platform.advanced_device_sharing import build_advanced_device_sharing_plan
@@ -51,6 +53,7 @@ from kserve_model_platform.registry import aliases
 from kserve_model_platform.resource_health_status import build_resource_health_status_plan
 from kserve_model_platform.resource_optimizer import build_resource_optimization_report
 from kserve_model_platform.rollout_control import build_rollout_plan, evaluate_rollout, wilson_error_upper_bound
+from kserve_model_platform.runtime_contract import SERVER_VERSION
 from kserve_model_platform.runtime_security import build_runtime_security_plan
 from kserve_model_platform.serving import deploy, predict, route_alias
 from kserve_model_platform.semantic_telemetry import build_semantic_telemetry_plan
@@ -336,8 +339,24 @@ class KServeModelServingPlatformTest(unittest.TestCase):
         workflow = (repo / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         makefile = (repo / "Makefile").read_text(encoding="utf-8")
 
-        for expected in ["actions/upload-artifact@v6", "actions/attest@v4", "attestations: write", "GITHUB_STEP_SUMMARY", "make ci-verify", "concurrency"]:
+        for expected in [
+            "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10",
+            "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f",
+            "actions/attest@f6bf1532d7d6793fce74eac584813a8eee607999",
+            "attestations: write",
+            "GITHUB_STEP_SUMMARY",
+            "make ci-verify",
+            "concurrency",
+        ]:
             self.assertIn(expected, workflow)
+        for mutable_ref in [
+            "actions/checkout@v6",
+            "actions/setup-python@v6",
+            "actions/upload-artifact@v6",
+            "actions/attest@v4",
+        ]:
+            self.assertNotIn(mutable_ref, workflow)
         for expected in ["ci-verify:", "index.html", "tenancy_fairness_report.json", "identity_access_report.json", "pending_workload_visibility_plan.json", "flavor_fungibility_plan.json", "cohort_fair_sharing_plan.json", "pod_resource_envelope_plan.json", "event_driven_assets_plan.json", "multi_team_readiness_plan.json", "asset_partitioning_plan.json", "dag_bundle_versioning_plan.json", "model_cache_plan.json", "multikueue_dispatch_plan.json", "provisioning_admission_plan.json", "indexed_job_resilience_plan.json", "elastic_workload_plan.json", "cost_observability_report.json", "deadline_alert_plan.json", "semantic_telemetry_plan.json", "inference_gateway_plan.json", "kuberay_capacity_plan.json", "topology_placement_plan.json", "inplace_resize_plan.json", "admin_access_diagnostics_plan.json", "advanced_device_sharing_plan.json", "resource_health_status_plan.json", "device_allocation_plan.json", "release_admission_decision.json", "runtime_security_plan.json", "control_plane_diagnostics_plan.json", "memory_qos_plan.json", "hpa_scale_to_zero_plan.json", "suspended_job_resources_plan.json", "constrained_impersonation_plan.json", "workload_aware_scheduling_plan.json", "queue_simulation.json", "performance_budget.json", "accelerator_capacity_plan.json", "orchestration_scorecard.json", "supply_chain_evidence.json", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
             self.assertIn(expected, makefile)
 
@@ -1283,11 +1302,28 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertIn(expected, dockerfile)
         for expected in ["startupProbe", "readinessProbe", "livenessProbe", "readOnlyRootFilesystem: true", "runAsNonRoot: true", "fsGroup: 65532", "shared-idempotency-store-required", "serving.kserve.io/autoscaler-class: none"]:
             self.assertIn(expected, manifest)
-        self.assertIn("fastapi==0.139.0", constraints)
+        for expected in ["fastapi==0.139.0", "pyyaml==6.0.3", "build==1.5.1", "pip==25.3", "setuptools==83.0.0", "wheel==0.47.0"]:
+            self.assertIn(expected, constraints)
         self.assertIn("serving-runtime-contract", workflow)
         self.assertIn("make compose-smoke", workflow)
         self.assertIn("make kserve-schema-contract", workflow)
+        self.assertIn("make package-smoke", workflow)
+        self.assertIn("make verify-serving-lock", workflow)
         self.assertIn("Production Boundary", docs)
+
+    def test_package_and_server_versions_have_one_source(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        pyproject = tomllib.loads((repo / "pyproject.toml").read_text(encoding="utf-8"))
+        manifest = (repo / "kserve" / "custom-runtime-inferenceservice.yaml").read_text(encoding="utf-8")
+
+        self.assertEqual(__version__, SERVER_VERSION)
+        self.assertIn("version", pyproject["project"]["dynamic"])
+        self.assertNotIn("version", pyproject["project"])
+        self.assertEqual(
+            pyproject["tool"]["setuptools"]["dynamic"]["version"]["attr"],
+            "kserve_model_platform.__version__",
+        )
+        self.assertIn(f'app.kubernetes.io/version: "{__version__}"', manifest)
 
 
 if __name__ == "__main__":

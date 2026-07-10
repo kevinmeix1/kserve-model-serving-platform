@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -11,10 +13,12 @@ try:
     from fastapi.testclient import TestClient
 
     from kserve_model_platform.api import Settings, create_app
+    from kserve_model_platform.runtime_state import PredictionLedger
 except (
     ImportError
 ):  # The dependency-light demo suite can run without the serving extra.
     TestClient = None
+    PredictionLedger = None
     Settings = None
     create_app = None
 
@@ -60,12 +64,20 @@ class ServingApiTest(unittest.TestCase):
             )
         )
 
+    def test_execution_claim_ttl_must_exceed_response_deadline(self) -> None:
+        with self.assertRaisesRegex(ValueError, "claim TTL must exceed"):
+            Settings(
+                inference_timeout_seconds=1.0,
+                idempotency_claim_ttl_seconds=0.5,
+            )
+
     def test_v2_health_metadata_and_batch_inference(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             with TestClient(self.app_for(Path(tmp))) as client:
                 self.assertEqual(client.get("/v2/health/live").json(), {"live": True})
                 self.assertEqual(client.get("/v2/health/ready").json(), {"ready": True})
 
+                server = client.get("/v2")
                 metadata = client.get("/v2/models/credit-risk-router")
                 response = client.post(
                     "/v2/models/credit-risk-router/infer",
@@ -73,6 +85,10 @@ class ServingApiTest(unittest.TestCase):
                 )
 
                 self.assertEqual(metadata.status_code, 200)
+                self.assertIn(
+                    "deadline-safe-idempotent-retry",
+                    server.json()["extensions"],
+                )
                 self.assertEqual(
                     {item["name"] for item in metadata.json()["inputs"]},
                     {
@@ -117,6 +133,187 @@ class ServingApiTest(unittest.TestCase):
             self.assertEqual(conflict.status_code, 409)
             self.assertIn("different payload", conflict.json()["error"])
             self.assertTrue((root / "api" / "idempotency.sqlite3").exists())
+
+    def test_timeout_reserves_capacity_until_detached_worker_completes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            app = create_app(
+                Settings(
+                    state_root=root,
+                    max_concurrency=1,
+                    inference_timeout_seconds=0.02,
+                    queue_timeout_seconds=0.01,
+                    shutdown_grace_seconds=1.0,
+                    reload_interval_seconds=0,
+                )
+            )
+            original_resolve = app.state.ledger.resolve
+            started = threading.Event()
+            release = threading.Event()
+            call_lock = threading.Lock()
+            call_count = 0
+
+            def delay_first_call(*args):
+                nonlocal call_count
+                with call_lock:
+                    call_count += 1
+                    should_delay = call_count == 1
+                if should_delay:
+                    started.set()
+                    if not release.wait(timeout=1.0):
+                        raise RuntimeError("test worker was not released")
+                return original_resolve(*args)
+
+            app.state.ledger.resolve = delay_first_call
+            with TestClient(app) as client:
+                timed_out = client.post(
+                    "/v2/models/credit-risk-router/infer",
+                    json=inference_payload("eventual-result"),
+                )
+                self.assertTrue(started.is_set())
+                self.assertEqual(timed_out.status_code, 504)
+                self.assertEqual(
+                    timed_out.headers["x-inference-execution"],
+                    "continuing",
+                )
+                self.assertEqual(timed_out.headers["retry-after"], "1")
+                self.assertEqual(len(app.state.detached_workers), 1)
+
+                overloaded = client.post(
+                    "/v2/models/credit-risk-router/infer",
+                    json=inference_payload("must-wait-for-capacity"),
+                )
+                self.assertEqual(overloaded.status_code, 503)
+
+                release.set()
+                deadline = time.monotonic() + 1.0
+                while app.state.detached_workers and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertFalse(app.state.detached_workers)
+
+                replay = client.post(
+                    "/v2/models/credit-risk-router/infer",
+                    json=inference_payload("eventual-result"),
+                )
+                metrics = client.get("/metrics").text
+
+            self.assertEqual(replay.status_code, 200)
+            self.assertTrue(replay.json()["parameters"]["idempotent_replay"])
+            self.assertIn("kserve_inference_detached_completions_total", metrics)
+            self.assertIn('reason="timeout"', metrics)
+
+    def test_active_request_claim_blocks_duplicate_scoring(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            app = create_app(
+                Settings(
+                    state_root=Path(tmp),
+                    max_concurrency=2,
+                    inference_timeout_seconds=0.02,
+                    queue_timeout_seconds=0.01,
+                    shutdown_grace_seconds=1.0,
+                    reload_interval_seconds=0,
+                )
+            )
+            original_resolve = app.state.ledger.resolve
+            started = threading.Event()
+            release = threading.Event()
+            compute_lock = threading.Lock()
+            compute_calls = 0
+
+            def single_flight_resolve(request_id, digest, generation, compute):
+                def delayed_compute():
+                    nonlocal compute_calls
+                    with compute_lock:
+                        compute_calls += 1
+                        invocation = compute_calls
+                    if invocation == 1:
+                        started.set()
+                        if not release.wait(timeout=1.0):
+                            raise RuntimeError("test worker was not released")
+                    return compute()
+
+                return original_resolve(
+                    request_id,
+                    digest,
+                    generation,
+                    delayed_compute,
+                )
+
+            app.state.ledger.resolve = single_flight_resolve
+            with TestClient(app) as client:
+                first = client.post(
+                    "/v2/models/credit-risk-router/infer",
+                    json=inference_payload("single-flight"),
+                )
+                self.assertTrue(started.is_set())
+                self.assertEqual(first.status_code, 504)
+
+                in_progress = client.post(
+                    "/v2/models/credit-risk-router/infer",
+                    json=inference_payload("single-flight"),
+                )
+                self.assertEqual(in_progress.status_code, 409)
+                self.assertIn("still executing", in_progress.json()["error"])
+                self.assertEqual(
+                    in_progress.headers["x-inference-execution"],
+                    "continuing",
+                )
+                self.assertEqual(compute_calls, 1)
+
+                release.set()
+                deadline = time.monotonic() + 1.0
+                while app.state.detached_workers and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                replay = client.post(
+                    "/v2/models/credit-risk-router/infer",
+                    json=inference_payload("single-flight"),
+                )
+
+            self.assertEqual(replay.status_code, 200)
+            self.assertTrue(replay.json()["parameters"]["idempotent_replay"])
+            self.assertEqual(compute_calls, 1)
+
+    def test_stale_request_claim_can_be_recovered_without_overwrite(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = PredictionLedger(
+                Path(tmp) / "ledger.sqlite3",
+                claim_ttl_seconds=0.02,
+            )
+            started = threading.Event()
+            release = threading.Event()
+            first_result: list[tuple[dict, bool]] = []
+
+            def slow_compute() -> dict:
+                started.set()
+                if not release.wait(timeout=1.0):
+                    raise RuntimeError("test worker was not released")
+                return {"winner": "expired-owner"}
+
+            def run_first_owner() -> None:
+                first_result.append(
+                    ledger.resolve("lease-recovery", "digest", "generation", slow_compute)
+                )
+
+            first_owner = threading.Thread(target=run_first_owner)
+            first_owner.start()
+            self.assertTrue(started.wait(timeout=0.5))
+            time.sleep(0.03)
+            recovered, replayed = ledger.resolve(
+                "lease-recovery",
+                "digest",
+                "generation",
+                lambda: {"winner": "recovery-owner"},
+            )
+            release.set()
+            first_owner.join(timeout=1.0)
+
+            self.assertFalse(first_owner.is_alive())
+            self.assertFalse(replayed)
+            self.assertEqual(recovered, {"winner": "recovery-owner"})
+            self.assertEqual(len(first_result), 1)
+            self.assertEqual(first_result[0][0]["winner"], "recovery-owner")
+            self.assertTrue(first_result[0][0]["parameters"]["idempotent_replay"])
+            self.assertTrue(first_result[0][1])
 
     def test_version_endpoint_pins_every_row_to_requested_model(self) -> None:
         version = "risk-model-2026-07-15"

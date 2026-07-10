@@ -54,6 +54,7 @@ def main() -> int:
 
     live_status, live, _ = request_json(args.base_url, "/v2/health/live")
     ready_status, ready, _ = request_json(args.base_url, "/v2/health/ready")
+    server_status, server, _ = request_json(args.base_url, "/v2")
     metadata_status, metadata, _ = request_json(
         args.base_url, "/v2/models/credit-risk-router"
     )
@@ -76,6 +77,8 @@ def main() -> int:
     assertions = {
         "live": live_status == 200 and live == {"live": True},
         "ready": ready_status == 200 and ready == {"ready": True},
+        "deadline_safe_retry_extension": server_status == 200
+        and "deadline-safe-idempotent-retry" in server.get("extensions", []),
         "metadata": metadata_status == 200
         and metadata.get("name") == "credit-risk-router",
         "batch_inference": first_status == 200
@@ -89,6 +92,7 @@ def main() -> int:
         "passed": all(assertions.values()),
         "checks": assertions,
         "model_version": first_headers.get("x-model-version"),
+        "server_version": server.get("version"),
     }
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report["passed"] else 1

@@ -14,7 +14,9 @@ The deterministic demo is local-first and fast to run. A containerized FastAPI r
 - Batched and version-pinned inference with strict tensor contracts
 - Atomic last-known-good model snapshots during alias promotion
 - Durable request idempotency across process restarts
+- Durable single-flight claims for concurrent same-ID retries
 - Bounded concurrency, queue budgets, and inference deadlines
+- Capacity-safe timeout handling with eventual idempotent replay
 - KServe InferenceService deployment metadata and custom runtime manifest
 - Champion and challenger model aliases
 - Canary traffic routing
@@ -87,6 +89,9 @@ make health      # inspect serving readiness
 make api-run     # start the KServe V2-compatible HTTP runtime
 make api-smoke   # verify health, metadata, batch inference, replay, and metrics
 make test-api    # run serving data-plane contract tests
+make lint-api    # lint the executable serving boundary
+make verify-serving-lock # reject missing, extra, or version-drifted dependencies
+make package-smoke # build with pinned tooling and verify an isolated wheel import
 make kserve-schema-contract # validate the manifest against KServe 0.18
 make compose-up  # build and start the reproducible container path
 make compose-smoke # build, test, and tear down the container path
@@ -98,7 +103,7 @@ make test        # run unit and integration tests
 
 See [production-grade refinements](docs/production-grade-refinements.md) for the KServe hardening, traffic policy, shadow scoring, canary gates, and rollback improvements.
 
-For the executable Open Inference V2 server, atomic model snapshots, persistent idempotency, probe semantics, and container smoke gate, see [KServe V2 serving runtime](docs/kserve-v2-serving-runtime.md).
+For the executable Open Inference V2 server, atomic model snapshots, persistent idempotency, cancellation-safe deadlines, probe semantics, and container smoke gate, see [KServe V2 serving runtime](docs/kserve-v2-serving-runtime.md).
 
 For the latest progressive rollout orchestration pass, see [advanced orchestration assessment](docs/advanced-orchestration-assessment.md).
 
@@ -235,7 +240,7 @@ The demo keeps promotion as an explicit command. This models a real approval wor
 
 ## Production Notes
 
-The included router is executable and suitable for local protocol and failure-semantics testing. A multi-pod deployment would move idempotency to a shared store, resolve models from an external MLflow registry and object store, and normally put tenant authentication, rate limits, and traffic policy at the gateway. Prediction logs would include trace IDs, model version, request hash, route, latency, validation errors, and feature payload references without raw sensitive features.
+The included router is executable and suitable for local protocol and failure-semantics testing. A multi-pod deployment would move idempotency to a shared store, resolve models from an external MLflow registry and object store, and normally put tenant authentication, rate limits, and traffic policy at the gateway. Prediction logs would include trace IDs, model version, request hash, route, latency, validation errors, and feature payload references without raw sensitive features. A `504` is a response deadline, not proof that Python stopped an already-running worker thread; capacity remains reserved, a durable claim blocks duplicate scoring, and the same request ID retrieves the eventual result.
 
 The key production idea is that model serving is not only a REST endpoint. It is a release system with traffic policy, observability, rollback, and strict request contracts.
 

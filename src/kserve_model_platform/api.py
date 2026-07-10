@@ -6,8 +6,9 @@ import logging
 import os
 import time
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any, AsyncIterator, Callable
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -24,6 +25,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from .runtime_contract import SERVER_VERSION
 from .runtime_state import (
     IdempotencyConflict,
+    IdempotencyInProgress,
     ModelSnapshot,
     PredictionLedger,
     Settings,
@@ -64,6 +66,16 @@ IDEMPOTENT_REPLAYS = Counter(
     "Inference requests served from the durable idempotency ledger.",
     ("model_name",),
 )
+DETACHED_WORKERS = Gauge(
+    "kserve_inference_detached_workers",
+    "Timed-out or disconnected inference workers still consuming capacity.",
+    ("model_name", "reason"),
+)
+DETACHED_COMPLETIONS = Counter(
+    "kserve_inference_detached_completions_total",
+    "Completion outcomes for workers that outlived their HTTP request.",
+    ("model_name", "reason", "outcome"),
+)
 
 
 class JsonLogFormatter(logging.Formatter):
@@ -82,6 +94,9 @@ class JsonLogFormatter(logging.Formatter):
             "generation",
             "champion",
             "challenger",
+            "detached_workers",
+            "reason",
+            "outcome",
             "error",
         ]:
             value = getattr(record, key, None)
@@ -170,8 +185,31 @@ class RequestBodyLimitMiddleware:
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     manager = SnapshotManager(settings)
-    ledger = PredictionLedger(settings.state_root / "api" / "idempotency.sqlite3")
+    ledger = PredictionLedger(
+        settings.state_root / "api" / "idempotency.sqlite3",
+        claim_ttl_seconds=settings.idempotency_claim_ttl_seconds,
+    )
     concurrency = asyncio.Semaphore(settings.max_concurrency)
+    detached_workers: set[asyncio.Task[tuple[dict, bool]]] = set()
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        yield
+        if not detached_workers:
+            return
+        LOGGER.warning(
+            "inference_shutdown_waiting_for_detached_workers",
+            extra={"detached_workers": len(detached_workers)},
+        )
+        _, pending = await asyncio.wait(
+            tuple(detached_workers),
+            timeout=settings.shutdown_grace_seconds,
+        )
+        if pending:
+            LOGGER.error(
+                "inference_shutdown_grace_exhausted",
+                extra={"detached_workers": len(pending)},
+            )
 
     app = FastAPI(
         title="KServe Credit Risk Runtime",
@@ -179,6 +217,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         docs_url="/docs",
         redoc_url=None,
         openapi_url="/openapi.json",
+        lifespan=lifespan,
     )
     app.add_middleware(
         RequestBodyLimitMiddleware,
@@ -187,6 +226,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.snapshot_manager = manager
     app.state.ledger = ledger
+    app.state.detached_workers = detached_workers
 
     @app.exception_handler(HTTPException)
     async def http_error(_: Request, exc: HTTPException) -> JSONResponse:
@@ -287,6 +327,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "parameters",
                 "durable-idempotency",
                 "atomic-model-snapshot",
+                "deadline-safe-idempotent-retry",
             ],
         }
 
@@ -343,6 +384,45 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "ready": True,
         }
 
+    def _defer_worker_release(
+        worker: asyncio.Task[tuple[dict, bool]],
+        *,
+        model_name: str,
+        inference_id: str,
+        reason: str,
+    ) -> None:
+        detached_workers.add(worker)
+        DETACHED_WORKERS.labels(model_name, reason).inc()
+
+        def completed(task: asyncio.Task[tuple[dict, bool]]) -> None:
+            detached_workers.discard(task)
+            DETACHED_WORKERS.labels(model_name, reason).dec()
+            IN_FLIGHT.labels(model_name).dec()
+            concurrency.release()
+            completion = "success"
+            error: str | None = None
+            try:
+                task.result()
+            except asyncio.CancelledError:
+                completion = "cancelled"
+            except Exception as exc:  # The HTTP response has already completed.
+                completion = "error"
+                error = str(exc)
+            DETACHED_COMPLETIONS.labels(model_name, reason, completion).inc()
+            log = LOGGER.info if completion == "success" else LOGGER.warning
+            log(
+                "inference_detached_worker_completed",
+                extra={
+                    "request_id": inference_id,
+                    "reason": reason,
+                    "outcome": completion,
+                    "error": error,
+                    "detached_workers": len(detached_workers),
+                },
+            )
+
+        worker.add_done_callback(completed)
+
     async def execute_inference(
         model_name: str,
         body: InferenceRequest,
@@ -355,6 +435,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         inference_id = body.id or request.state.correlation_id
         normalized = body.model_copy(update={"id": inference_id})
         acquired = False
+        release_deferred = False
         started = time.perf_counter()
         outcome = "error"
         route = "unknown"
@@ -399,7 +480,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     max_batch_size=settings.max_batch_size,
                 )
 
-            result, replayed = await asyncio.wait_for(
+            worker = asyncio.create_task(
                 asyncio.to_thread(
                     ledger.resolve,
                     inference_id,
@@ -407,8 +488,55 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     snapshot.generation,
                     compute,
                 ),
-                timeout=settings.inference_timeout_seconds,
+                name=f"inference-{inference_id}",
             )
+            try:
+                result, replayed = await asyncio.wait_for(
+                    asyncio.shield(worker),
+                    timeout=settings.inference_timeout_seconds,
+                )
+            except TimeoutError as exc:
+                if worker.done():
+                    try:
+                        result, replayed = worker.result()
+                    except TimeoutError:
+                        outcome = "error"
+                        route = "runtime"
+                        raise HTTPException(
+                            status_code=500,
+                            detail="inference worker failed",
+                        ) from exc
+                else:
+                    release_deferred = True
+                    outcome = "timeout"
+                    route = "runtime"
+                    _defer_worker_release(
+                        worker,
+                        model_name=model_name,
+                        inference_id=inference_id,
+                        reason="timeout",
+                    )
+                    raise HTTPException(
+                        status_code=504,
+                        detail=(
+                            "inference deadline exceeded; retry with the same request id"
+                        ),
+                        headers={
+                            "Retry-After": "1",
+                            "X-Inference-Execution": "continuing",
+                        },
+                    ) from exc
+            except asyncio.CancelledError:
+                release_deferred = True
+                outcome = "cancelled"
+                route = "runtime"
+                _defer_worker_release(
+                    worker,
+                    model_name=model_name,
+                    inference_id=inference_id,
+                    reason="client_cancelled",
+                )
+                raise
             routes = sorted(set(output_values(result, "selected_alias")))
             route = (
                 routes[0]
@@ -441,17 +569,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             outcome = "conflict"
             route = "idempotency"
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        except TimeoutError as exc:
-            outcome = "timeout"
-            route = "runtime"
+        except IdempotencyInProgress as exc:
+            outcome = "in_progress"
+            route = "idempotency"
             raise HTTPException(
-                status_code=504,
-                detail="inference deadline exceeded",
+                status_code=409,
+                detail=str(exc),
+                headers={
+                    "Retry-After": "1",
+                    "X-Inference-Execution": "continuing",
+                },
             ) from exc
         finally:
-            IN_FLIGHT.labels(model_name).dec()
-            if acquired:
-                concurrency.release()
+            if not release_deferred:
+                IN_FLIGHT.labels(model_name).dec()
+                if acquired:
+                    concurrency.release()
             REQUESTS.labels(model_name, route, outcome).inc()
             REQUEST_DURATION.labels(model_name, outcome).observe(
                 time.perf_counter() - started

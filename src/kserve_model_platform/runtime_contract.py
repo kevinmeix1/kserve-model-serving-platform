@@ -1,5 +1,7 @@
+from . import __version__
+
 MODEL_NAME = "credit-risk-router"
-SERVER_VERSION = "0.2.0"
+SERVER_VERSION = __version__
 
 INPUT_SPECS = {
     "customer_id": "BYTES",

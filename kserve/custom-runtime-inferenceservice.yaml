@@ -6,7 +6,7 @@ metadata:
   labels:
     app.kubernetes.io/name: kserve-model-serving-platform
     app.kubernetes.io/component: custom-predictor
-    app.kubernetes.io/version: "0.2.0"
+    app.kubernetes.io/version: "0.2.1"
     mlops.dev/model: credit-risk
   annotations:
     serving.kserve.io/deploymentMode: Standard
@@ -53,6 +53,10 @@ spec:
             value: "0.25"
           - name: INFERENCE_QUEUE_TIMEOUT_SECONDS
             value: "0.05"
+          - name: INFERENCE_SHUTDOWN_GRACE_SECONDS
+            value: "5.0"
+          - name: IDEMPOTENCY_CLAIM_TTL_SECONDS
+            value: "30.0"
           - name: LOG_LEVEL
             value: INFO
         ports:

@@ -1,4 +1,17 @@
-.PHONY: demo runtime-init deploy predict simulate monitor promote rollback health api-run api-smoke test-api kserve-schema-contract compose-config compose-up compose-down compose-smoke plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan device-plan resource-health-status advanced-device-sharing admin-access-diagnostics inplace-resize-plan topology-plan kuberay-plan inference-gateway-plan semantic-telemetry-plan deadline-alerts-plan cost-observability elastic-workload-plan indexed-job-resilience provisioning-admission multikueue-dispatch model-cache dag-bundle-plan asset-partitioning-plan airflow-stateful-orchestration airflow-sdk-contract multi-team-readiness event-driven-assets pod-resource-envelopes cohort-fair-sharing flavor-fungibility pending-workload-visibility tenancy-report identity-report performance-budget queue-simulation workload-aware-scheduling runtime-security control-plane-diagnostics memory-qos hpa-scale-zero suspended-job-resources constrained-impersonation release-admission ci-verify minikube-up kubernetes-plan test clean
+.PHONY: demo runtime-init deploy predict simulate monitor promote rollback health api-run api-smoke test-api lint-api verify-serving-lock package package-smoke kserve-schema-contract compose-config compose-up compose-down compose-smoke plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan device-plan resource-health-status advanced-device-sharing admin-access-diagnostics inplace-resize-plan topology-plan kuberay-plan inference-gateway-plan semantic-telemetry-plan deadline-alerts-plan cost-observability elastic-workload-plan indexed-job-resilience provisioning-admission multikueue-dispatch model-cache dag-bundle-plan asset-partitioning-plan airflow-stateful-orchestration airflow-sdk-contract multi-team-readiness event-driven-assets pod-resource-envelopes cohort-fair-sharing flavor-fungibility pending-workload-visibility tenancy-report identity-report performance-budget queue-simulation workload-aware-scheduling runtime-security control-plane-diagnostics memory-qos hpa-scale-zero suspended-job-resources constrained-impersonation release-admission ci-verify minikube-up kubernetes-plan test clean
+
+PYTHON ?= python3
+SERVING_FILES := \
+	src/kserve_model_platform/api.py \
+	src/kserve_model_platform/runtime_contract.py \
+	src/kserve_model_platform/runtime_state.py \
+	src/kserve_model_platform/v2_protocol.py \
+	tests/test_kserve_model_platform.py \
+	tests/test_serving_api.py \
+	tools/smoke_wheel.py \
+	tools/smoke_serving_api.py \
+	tools/verify_locked_environment.py \
+	tools/validate_kserve_manifest.py
 
 demo:
 	PYTHONPATH=src python3 -m kserve_model_platform demo --output .local
@@ -285,16 +298,29 @@ health:
 	PYTHONPATH=src python3 -m kserve_model_platform health --output .local
 
 api-run:
-	LOG_LEVEL=INFO SERVING_STATE_ROOT=.local PYTHONPATH=src python3 -m uvicorn kserve_model_platform.api:app --host 0.0.0.0 --port 8080 --workers 1 --no-access-log
+	LOG_LEVEL=INFO SERVING_STATE_ROOT=.local PYTHONPATH=src $(PYTHON) -m uvicorn kserve_model_platform.api:app --host 0.0.0.0 --port 8080 --workers 1 --no-access-log
 
 api-smoke:
-	python3 tools/smoke_serving_api.py --base-url "$${SERVING_BASE_URL:-http://127.0.0.1:8080}"
+	$(PYTHON) tools/smoke_serving_api.py --base-url "$${SERVING_BASE_URL:-http://127.0.0.1:8080}"
 
 test-api:
-	PYTHONPATH=src python3 -m unittest tests.test_serving_api -v
+	PYTHONPATH=src $(PYTHON) -m unittest tests.test_serving_api -v
+
+lint-api:
+	$(PYTHON) -m ruff check --ignore E501,I001 $(SERVING_FILES)
+
+verify-serving-lock:
+	$(PYTHON) tools/verify_locked_environment.py requirements-serving.lock
+
+package:
+	rm -rf build dist
+	$(PYTHON) -m build --no-isolation --wheel
+
+package-smoke: package
+	$(PYTHON) tools/smoke_wheel.py
 
 kserve-schema-contract:
-	python3 tools/validate_kserve_manifest.py
+	$(PYTHON) tools/validate_kserve_manifest.py
 
 compose-config:
 	docker compose config --quiet

@@ -7,6 +7,7 @@ import os
 import sqlite3
 import threading
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -45,6 +46,8 @@ class Settings:
     max_batch_size: int = 128
     max_request_bytes: int = 262_144
     reload_interval_seconds: float = 0.25
+    shutdown_grace_seconds: float = 5.0
+    idempotency_claim_ttl_seconds: float = 30.0
     bootstrap_state: bool = True
 
     def __post_init__(self) -> None:
@@ -62,6 +65,10 @@ class Settings:
             )
         if self.reload_interval_seconds < 0:
             raise ValueError("reload interval cannot be negative")
+        if self.shutdown_grace_seconds <= 0:
+            raise ValueError("shutdown grace period must be positive")
+        if self.idempotency_claim_ttl_seconds <= self.inference_timeout_seconds:
+            raise ValueError("idempotency claim TTL must exceed the inference timeout")
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -80,6 +87,12 @@ class Settings:
             max_request_bytes=int(os.getenv("INFERENCE_MAX_REQUEST_BYTES", "262144")),
             reload_interval_seconds=float(
                 os.getenv("MODEL_RELOAD_INTERVAL_SECONDS", "0.25")
+            ),
+            shutdown_grace_seconds=float(
+                os.getenv("INFERENCE_SHUTDOWN_GRACE_SECONDS", "5.0")
+            ),
+            idempotency_claim_ttl_seconds=float(
+                os.getenv("IDEMPOTENCY_CLAIM_TTL_SECONDS", "30.0")
             ),
             bootstrap_state=bootstrap in {"1", "true", "yes", "on"},
         )
@@ -101,6 +114,10 @@ class SnapshotUnavailable(RuntimeError):
 
 
 class IdempotencyConflict(RuntimeError):
+    pass
+
+
+class IdempotencyInProgress(RuntimeError):
     pass
 
 
@@ -266,8 +283,11 @@ class SnapshotManager:
 
 
 class PredictionLedger:
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, claim_ttl_seconds: float = 30.0) -> None:
+        if claim_ttl_seconds <= 0:
+            raise ValueError("claim TTL must be positive")
         self.path = path
+        self.claim_ttl_seconds = claim_ttl_seconds
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
@@ -291,6 +311,18 @@ class PredictionLedger:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS inference_claims (
+                    request_id TEXT PRIMARY KEY,
+                    request_hash TEXT NOT NULL,
+                    model_generation TEXT NOT NULL,
+                    owner_token TEXT NOT NULL,
+                    lease_expires_at REAL NOT NULL,
+                    claimed_at TEXT NOT NULL
+                )
+                """
+            )
 
     @staticmethod
     def _replay(response_json: str) -> dict:
@@ -307,20 +339,9 @@ class PredictionLedger:
         model_generation: str,
         compute: Callable[[], dict],
     ) -> tuple[dict, bool]:
-        with self._connect() as connection:
-            existing = connection.execute(
-                "SELECT request_hash, response_json FROM inference_requests WHERE request_id = ?",
-                (request_id,),
-            ).fetchone()
-        if existing is not None:
-            if existing["request_hash"] != request_digest:
-                raise IdempotencyConflict(
-                    "request id was already used with a different payload"
-                )
-            return self._replay(existing["response_json"]), True
-
-        response = compute()
-        response_json = json.dumps(response, sort_keys=True, separators=(",", ":"))
+        owner_token = uuid.uuid4().hex
+        now = time.time()
+        lease_expires_at = now + self.claim_ttl_seconds
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             existing = connection.execute(
@@ -328,25 +349,120 @@ class PredictionLedger:
                 (request_id,),
             ).fetchone()
             if existing is not None:
-                connection.rollback()
                 if existing["request_hash"] != request_digest:
                     raise IdempotencyConflict(
                         "request id was already used with a different payload"
                     )
                 return self._replay(existing["response_json"]), True
-            connection.execute(
+
+            claim = connection.execute(
                 """
-                INSERT INTO inference_requests (
-                    request_id, request_hash, response_json, model_generation, created_at
-                ) VALUES (?, ?, ?, ?, ?)
+                SELECT request_hash, owner_token, lease_expires_at
+                FROM inference_claims
+                WHERE request_id = ?
                 """,
-                (
-                    request_id,
-                    request_digest,
-                    response_json,
-                    model_generation,
-                    utc_iso(),
-                ),
-            )
-            connection.commit()
+                (request_id,),
+            ).fetchone()
+            if claim is not None and claim["request_hash"] != request_digest:
+                raise IdempotencyConflict(
+                    "request id is executing with a different payload"
+                )
+            if claim is not None and float(claim["lease_expires_at"]) > now:
+                raise IdempotencyInProgress(
+                    "request id is still executing; retry after the current lease"
+                )
+            if claim is None:
+                connection.execute(
+                    """
+                    INSERT INTO inference_claims (
+                        request_id, request_hash, model_generation,
+                        owner_token, lease_expires_at, claimed_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        request_id,
+                        request_digest,
+                        model_generation,
+                        owner_token,
+                        lease_expires_at,
+                        utc_iso(),
+                    ),
+                )
+            else:
+                connection.execute(
+                    """
+                    UPDATE inference_claims
+                    SET model_generation = ?, owner_token = ?,
+                        lease_expires_at = ?, claimed_at = ?
+                    WHERE request_id = ?
+                    """,
+                    (
+                        model_generation,
+                        owner_token,
+                        lease_expires_at,
+                        utc_iso(),
+                        request_id,
+                    ),
+                )
+
+        try:
+            response = compute()
+        except Exception:
+            self._release_claim(request_id, owner_token)
+            raise
+        response_json = json.dumps(response, sort_keys=True, separators=(",", ":"))
+        try:
+            with self._connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                existing = connection.execute(
+                    "SELECT request_hash, response_json FROM inference_requests WHERE request_id = ?",
+                    (request_id,),
+                ).fetchone()
+                if existing is not None:
+                    connection.execute(
+                        "DELETE FROM inference_claims WHERE request_id = ? AND owner_token = ?",
+                        (request_id, owner_token),
+                    )
+                    if existing["request_hash"] != request_digest:
+                        raise IdempotencyConflict(
+                            "request id was already used with a different payload"
+                        )
+                    return self._replay(existing["response_json"]), True
+
+                claim = connection.execute(
+                    "SELECT owner_token FROM inference_claims WHERE request_id = ?",
+                    (request_id,),
+                ).fetchone()
+                if claim is None or claim["owner_token"] != owner_token:
+                    raise IdempotencyInProgress(
+                        "request execution lease changed before completion"
+                    )
+                connection.execute(
+                    """
+                    INSERT INTO inference_requests (
+                        request_id, request_hash, response_json, model_generation, created_at
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        request_id,
+                        request_digest,
+                        response_json,
+                        model_generation,
+                        utc_iso(),
+                    ),
+                )
+                connection.execute(
+                    "DELETE FROM inference_claims WHERE request_id = ? AND owner_token = ?",
+                    (request_id, owner_token),
+                )
+        except Exception:
+            self._release_claim(request_id, owner_token)
+            raise
         return response, False
+
+    def _release_claim(self, request_id: str, owner_token: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "DELETE FROM inference_claims WHERE request_id = ? AND owner_token = ?",
+                (request_id, owner_token),
+            )
