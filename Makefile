@@ -203,6 +203,8 @@ ci-verify:
 	test -f src/kserve_model_platform/v2_protocol.py
 	test -f kserve/custom-runtime-inferenceservice.yaml
 	test -f docs/kserve-v2-serving-runtime.md
+	test -f docs/demo/kserve-judge-demo.mp4
+	test $$(wc -c < docs/demo/kserve-judge-demo.mp4) -gt 1000000
 	test -f docs/screenshots/dashboard.png
 	test -f .local/reports/kserve_serving_dashboard.html
 	test -f .local/reports/index.html
