@@ -10,6 +10,8 @@ The deterministic demo is local-first and fast to run. A containerized FastAPI r
 
 [Watch the narrated judge demo](docs/demo/kserve-judge-demo.mp4) or follow the [five-minute demo runbook](docs/judge-demo.md). A verified mobile capture is available at [docs/screenshots/dashboard-mobile.png](docs/screenshots/dashboard-mobile.png), the LLM readiness dashboard capture is at [docs/screenshots/dashboard-llm-readiness.png](docs/screenshots/dashboard-llm-readiness.png), and the Transformer/Explainer readiness capture is at [docs/screenshots/dashboard-transformer-explainer.png](docs/screenshots/dashboard-transformer-explainer.png).
 
+![Judge evidence deck](docs/screenshots/dashboard-evidence-deck.png)
+
 ## What This Demonstrates
 
 - Runnable KServe Open Inference Protocol V2 HTTP runtime
