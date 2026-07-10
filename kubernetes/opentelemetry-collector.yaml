@@ -35,6 +35,9 @@ data:
           - key: deployment.environment.name
             action: upsert
             value: local-demo
+          - key: inference.telemetry.profile
+            action: upsert
+            value: otel-genai-plus-kubernetes
       batch:
         timeout: 3s
         send_batch_size: 512
@@ -95,3 +98,69 @@ spec:
         - name: config
           configMap:
             name: serving-otel-collector-config
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: serving-genai-telemetry-slos
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: serving.genai.telemetry
+      rules:
+        - alert: CreditRiskGenAITokenCostBudgetExceeded
+          expr: histogram_quantile(0.95, sum(rate(gen_ai_usage_input_tokens_bucket[5m])) by (le, model_version)) > 2048
+          for: 10m
+          labels:
+            severity: warning
+            team: ml-serving
+          annotations:
+            summary: GenAI-style serving token usage breached the progressive rollout budget.
+        - alert: CreditRiskGenAIQueueLatencyHigh
+          expr: histogram_quantile(0.95, sum(rate(inference_queue_duration_ms_bucket[5m])) by (le, inference_pool)) > 75
+          for: 10m
+          labels:
+            severity: critical
+            team: ml-serving
+          annotations:
+            summary: Endpoint picker or model-server queueing is too high for canary promotion.
+        - alert: CreditRiskGenAIGroundednessRisk
+          expr: quantile_over_time(0.05, inference_answer_groundedness_score[15m]) < 0.80
+          for: 10m
+          labels:
+            severity: critical
+            team: ml-serving
+          annotations:
+            summary: Groundedness proxy is below the release threshold.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: credit-risk-genai-serving-quality
+  namespace: mlops-serving
+spec:
+  metrics:
+    - name: genai-token-budget
+      interval: 5m
+      failureLimit: 1
+      successCondition: result[0] <= 2048
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring.svc:9090
+          query: histogram_quantile(0.95, sum(rate(gen_ai_usage_input_tokens_bucket[5m])) by (le))
+    - name: genai-queue-latency
+      interval: 5m
+      failureLimit: 1
+      successCondition: result[0] <= 75
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring.svc:9090
+          query: histogram_quantile(0.95, sum(rate(inference_queue_duration_ms_bucket[5m])) by (le))
+    - name: genai-groundedness
+      interval: 5m
+      failureLimit: 1
+      successCondition: result[0] >= 0.80
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring.svc:9090
+          query: quantile_over_time(0.05, inference_answer_groundedness_score[15m])

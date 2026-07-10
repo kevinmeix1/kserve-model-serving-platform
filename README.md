@@ -205,7 +205,7 @@ For Kubernetes v1.36 suspended Job resource mutation, `MutablePodResourcesForSus
 
 For Kubernetes v1.36 constrained impersonation, `ConstrainedImpersonation`, and least-privilege KServe debugging with separate identity and action authorization, see [constrained impersonation](docs/constrained-impersonation.md).
 
-For portable OpenTelemetry attributes, GenAI token/cost fields, Kubernetes correlation, and telemetry redaction guardrails, see [semantic telemetry](docs/semantic-telemetry.md).
+For portable OpenTelemetry attributes, GenAI token/cost fields, Kubernetes correlation, telemetry redaction guardrails, and Argo/Prometheus rollout gates for token budget, queue latency, cache hit ratio, and groundedness proxy, see [semantic telemetry](docs/semantic-telemetry.md).
 
 For serving tenant quotas, Kueue cohorts, Airflow pools, rollback reservations, chargeback labels, and noisy-neighbor controls, see [multi-tenant fairness](docs/multi-tenant-fairness.md).
 

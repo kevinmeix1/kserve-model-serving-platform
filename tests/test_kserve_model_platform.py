@@ -543,10 +543,13 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue(report["passed"])
             self.assertEqual(report["recommended_action"], "enable_semantic_telemetry_contract")
             self.assertIn("gen_ai.request.model", report["schema"]["required_attributes"])
+            self.assertTrue(report["genai_rollout_metrics"]["passed"])
+            self.assertEqual(report["genai_rollout_metrics"]["analysis_template"], "credit-risk-genai-serving-quality")
+            self.assertTrue(any(metric["name"] == "groundedness_score_p05" for metric in report["genai_rollout_metrics"]["metrics"]))
             self.assertTrue((root / "reports" / "semantic_telemetry_plan.json").exists())
-        for expected in ["attributes/semantic_redaction", "gen_ai.input.messages", "gen_ai.output.messages", "deployment.environment.name"]:
+        for expected in ["attributes/semantic_redaction", "gen_ai.input.messages", "gen_ai.output.messages", "deployment.environment.name", "CreditRiskGenAITokenCostBudgetExceeded", "AnalysisTemplate", "credit-risk-genai-serving-quality"]:
             self.assertIn(expected, collector)
-        for expected in ["Semantic Telemetry", "GenAI", "Kubernetes", "redaction"]:
+        for expected in ["Semantic Telemetry", "GenAI", "Kubernetes", "redaction", "token budget", "groundedness"]:
             self.assertIn(expected, docs)
 
     def test_airflow_deadline_alert_plan_and_docs_exist(self) -> None:
@@ -1228,6 +1231,8 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue((root / "reports" / "supply_chain_evidence.json").exists())
             dashboard = (root / "reports" / "kserve_serving_dashboard.html").read_text(encoding="utf-8")
             self.assertIn("Inference Gateway", dashboard)
+            self.assertIn("GenAI Telemetry Gates", dashboard)
+            self.assertIn("Groundedness p05", dashboard)
             self.assertIn("credit risk inference pool", dashboard.replace("-", " "))
             self.assertIn("FailOpen", dashboard)
             self.assertEqual(result["simulation"]["success_count"], 120)

@@ -89,10 +89,14 @@ def render_dashboard(
     aliases: dict,
     rollout_plan: dict | None = None,
     inference_gateway_plan: dict | None = None,
+    semantic_telemetry_plan: dict | None = None,
 ) -> Path:
     rollout_plan = rollout_plan or {}
     inference_gateway_plan = inference_gateway_plan or {}
+    semantic_telemetry_plan = semantic_telemetry_plan or {}
     rollout_analysis = rollout_plan.get("analysis", {})
+    genai_rollout = semantic_telemetry_plan.get("genai_rollout_metrics", {})
+    genai_metrics = {item.get("name"): item for item in genai_rollout.get("metrics", [])}
     check_rows = [
         {
             "check": LABELS.get(check["name"], check["name"]),
@@ -291,6 +295,17 @@ def render_dashboard(
                 <div><span>Next canary percent</span><strong>{esc(rollout_plan.get('next_percent', 'n/a'))}</strong></div>
                 <div><span>Error upper bound</span><strong>{esc(rollout_analysis.get('error_upper_bound', 'n/a'))}</strong></div>
                 <div><span>Gateway weights</span><strong>{traffic_chips(rollout_plan.get('gateway_weights', {}))}</strong></div>
+              </div>
+            </div>
+            <div class="panel">
+              <h2>GenAI Telemetry Gates</h2>
+              <div class="summary">
+                <div><span>Token p95</span><strong>{esc(genai_metrics.get('input_token_p95', {}).get('observed', 'n/a'))} / {esc(genai_metrics.get('input_token_p95', {}).get('threshold', 'n/a'))}</strong></div>
+                <div><span>Cost per 1k</span><strong>${esc(genai_metrics.get('estimated_cost_per_1k', {}).get('observed', 'n/a'))}</strong></div>
+                <div><span>Queue p95</span><strong>{esc(genai_metrics.get('queue_latency_p95_ms', {}).get('observed', 'n/a'))} ms</strong></div>
+                <div><span>Prefix cache hit</span><strong>{esc(genai_metrics.get('prefix_cache_hit_ratio', {}).get('observed', 'n/a'))}</strong></div>
+                <div><span>Groundedness p05</span><strong>{esc(genai_metrics.get('groundedness_score_p05', {}).get('observed', 'n/a'))}</strong></div>
+                <div><span>Analysis</span><strong>{compact_label(genai_rollout.get('analysis_template', 'not planned'))}</strong></div>
               </div>
             </div>
             <div class="panel">
