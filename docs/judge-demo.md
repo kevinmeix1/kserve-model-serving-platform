@@ -11,6 +11,10 @@ make api-run PYTHON=.venv/bin/python
 
 Open `http://127.0.0.1:8080/dashboard`.
 
+The dashboard includes a **Judge Demo Theater** panel that turns the committed
+video into a live review path: serving contract, inference lab, rollout gates,
+and LLM/KServe platform depth.
+
 ## Five-minute story
 
 1. Establish the champion, challenger, traffic split, canary gate, and current p95 latency.
@@ -27,4 +31,8 @@ make demo-voice PYTHON=.venv/bin/python
 make demo-video
 ```
 
-The neural voice is generated with `edge-tts`. The resulting video is `docs/demo/kserve-judge-demo.mp4`.
+The neural voice is generated with `edge-tts`, which provides natural Microsoft
+neural voices without adding heavy model weights to the repository. Local
+offline options such as Piper or Kokoro can replace this step if cloud-free
+media generation is required. The resulting video is
+`docs/demo/kserve-judge-demo.mp4`.

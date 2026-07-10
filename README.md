@@ -12,6 +12,8 @@ The deterministic demo is local-first and fast to run. A containerized FastAPI r
 
 ![Judge evidence deck](docs/screenshots/dashboard-evidence-deck.png)
 
+![Judge demo theater](docs/screenshots/dashboard-demo-theater.png)
+
 ## What This Demonstrates
 
 - Runnable KServe Open Inference Protocol V2 HTTP runtime

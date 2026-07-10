@@ -8,13 +8,14 @@ SUBTITLES="${4:-.local/demo/kserve-judge-demo.srt}"
 
 screenshots=(
   "dashboard.png"
+  "dashboard-demo-theater.png"
   "dashboard-gateway.png"
   "dashboard-genai-telemetry.png"
   "dashboard-llm-readiness.png"
   "dashboard-transformer-explainer.png"
   "dashboard-mobile.png"
 )
-durations=(36 30 30 34 35 28)
+durations=(36 22 30 30 34 35 28)
 
 command -v ffmpeg >/dev/null || { echo "ffmpeg is required" >&2; exit 1; }
 test -f "$AUDIO" || { echo "Missing narration: run make demo-voice" >&2; exit 1; }
