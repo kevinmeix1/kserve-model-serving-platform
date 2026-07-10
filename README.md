@@ -143,6 +143,8 @@ For Airflow 3 GitDagBundle configuration, DAG versioning, scheduler-managed back
 
 For Airflow 3.2 asset partitioning, partition-aware KServe canary telemetry, route decisions, and rollback smoke backfills, see [Airflow asset partitioning](docs/airflow-asset-partitioning.md).
 
+For Airflow 3.3 task/asset state stores, bounded rollout rollup and route fanout, runtime partitions, exception-aware retries, and a real SDK parse gate, see [Airflow stateful orchestration](docs/airflow-stateful-orchestration.md).
+
 For Airflow multi-team preview readiness with serving-owned DAG Bundles, team-scoped pools/secrets, team triggerers, and asset-event filtering, see [Airflow multi-team readiness](docs/airflow-multi-team-readiness.md).
 
 For Airflow 3 AssetWatchers, `BaseEventTrigger` contracts, shared-stream polling, `AssetAlias`, and conditional serving asset expressions, see [event-driven assets](docs/event-driven-assets.md).

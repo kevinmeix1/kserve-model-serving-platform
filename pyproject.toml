@@ -13,3 +13,4 @@ integrations = [
   "uvicorn>=0.30",
   "opentelemetry-api>=1.25"
 ]
+airflow33 = ["apache-airflow==3.3.0"]
