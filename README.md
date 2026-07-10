@@ -165,6 +165,8 @@ For Kubernetes v1.36 HPA scale-to-zero, `HPAScaleToZero`, Object/External wake m
 
 For Kubernetes v1.36 suspended Job resource mutation, `MutablePodResourcesForSuspendedJobs`, and queue-time CPU/memory/GPU right-sizing for KServe shadow replay, route conformance, and explainer Jobs before unsuspend, see [suspended Job resources](docs/suspended-job-resources.md).
 
+For Kubernetes v1.36 constrained impersonation, `ConstrainedImpersonation`, and least-privilege KServe debugging with separate identity and action authorization, see [constrained impersonation](docs/constrained-impersonation.md).
+
 For portable OpenTelemetry attributes, GenAI token/cost fields, Kubernetes correlation, and telemetry redaction guardrails, see [semantic telemetry](docs/semantic-telemetry.md).
 
 For serving tenant quotas, Kueue cohorts, Airflow pools, rollback reservations, chargeback labels, and noisy-neighbor controls, see [multi-tenant fairness](docs/multi-tenant-fairness.md).

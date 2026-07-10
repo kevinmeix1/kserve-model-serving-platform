@@ -1,0 +1,158 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: serving-debugger-impersonate-identity
+  namespace: mlops-serving
+rules:
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["serviceaccounts"]
+    resourceNames: ["router-reader"]
+    verbs: ["impersonate:serviceaccount"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rollback-controller-impersonate-identity
+  namespace: mlops-serving
+rules:
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["serviceaccounts"]
+    resourceNames: ["serving-status-writer"]
+    verbs: ["impersonate:serviceaccount"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rollback-controller-impersonate-actions
+  namespace: mlops-serving
+rules:
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices/status"]
+    verbs:
+      - "impersonate-on:serviceaccount:get"
+      - "impersonate-on:serviceaccount:patch"
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes/status"]
+    verbs:
+      - "impersonate-on:serviceaccount:get"
+      - "impersonate-on:serviceaccount:patch"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rollback-controller-impersonate-identity
+  namespace: mlops-serving
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: rollback-controller-impersonate-identity
+subjects:
+  - kind: ServiceAccount
+    name: rollback-controller
+    namespace: mlops-serving
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rollback-controller-impersonate-actions
+  namespace: mlops-serving
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: rollback-controller-impersonate-actions
+subjects:
+  - kind: ServiceAccount
+    name: rollback-controller
+    namespace: mlops-serving
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: serving-debugger-impersonate-actions
+  namespace: mlops-serving
+rules:
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices/status"]
+    verbs:
+      - "impersonate-on:serviceaccount:get"
+      - "impersonate-on:serviceaccount:list"
+      - "impersonate-on:serviceaccount:watch"
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes", "httproutes/status"]
+    verbs:
+      - "impersonate-on:serviceaccount:get"
+      - "impersonate-on:serviceaccount:list"
+      - "impersonate-on:serviceaccount:watch"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: serving-debugger-impersonate-identity
+  namespace: mlops-serving
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: serving-debugger-impersonate-identity
+subjects:
+  - kind: ServiceAccount
+    name: serving-debugger
+    namespace: mlops-serving
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: serving-debugger-impersonate-actions
+  namespace: mlops-serving
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: serving-debugger-impersonate-actions
+subjects:
+  - kind: ServiceAccount
+    name: serving-debugger
+    namespace: mlops-serving
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kserve-constrained-impersonation
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: kserve.constrained-impersonation
+      rules:
+        - alert: KServeLegacyImpersonateVerbDetected
+          expr: max(kserve_rbac_legacy_impersonate_grants{namespace="mlops-serving"}) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Legacy broad impersonate verb is present without constrained action grants
+        - alert: KServeConstrainedImpersonationAuditMissing
+          expr: max(kserve_impersonation_audit_missing_constraint{namespace="mlops-serving"}) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Impersonated serving request is missing authenticationMetadata.impersonationConstraint
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: constrained-impersonation-audit-policy
+  namespace: mlops-serving
+data:
+  audit-policy.yaml: |
+    apiVersion: audit.k8s.io/v1
+    kind: Policy
+    rules:
+      - level: Metadata
+        omitStages:
+          - RequestReceived
+        verbs:
+          - "impersonate:serviceaccount"
+          - "impersonate-on:serviceaccount:get"
+          - "impersonate-on:serviceaccount:patch"
+        resources:
+          - group: "authentication.k8s.io"
+            resources: ["serviceaccounts"]
