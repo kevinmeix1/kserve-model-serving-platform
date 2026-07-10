@@ -119,6 +119,8 @@ def monitor(output: str | Path) -> dict:
     write_json(root / "reports" / "canary_decision.json", decision)
     deployment = read_json(root / "deployments" / "kserve_state.json")
     rollout_plan = build_rollout_plan(root)
+    inference_gateway_path = root / "reports" / "inference_gateway_plan.json"
+    inference_gateway_plan = read_json(inference_gateway_path) if inference_gateway_path.exists() else None
     dashboard = render_dashboard(
         root / "reports" / "kserve_serving_dashboard.html",
         deployment=deployment,
@@ -126,6 +128,7 @@ def monitor(output: str | Path) -> dict:
         decision=decision,
         aliases=registry_aliases(root),
         rollout_plan=rollout_plan,
+        inference_gateway_plan=inference_gateway_plan,
     )
     return {"report": report, "decision": decision, "rollout_plan": rollout_plan, "dashboard": str(dashboard)}
 
@@ -205,6 +208,15 @@ def demo(output: str | Path) -> dict:
     topology_placement = build_topology_placement_plan(root)
     kuberay_capacity = build_kuberay_capacity_plan(root)
     inference_gateway = build_inference_gateway_plan(root)
+    render_dashboard(
+        root / "reports" / "kserve_serving_dashboard.html",
+        deployment=deployment,
+        report=monitoring["report"],
+        decision=monitoring["decision"],
+        aliases=registry_aliases(root),
+        rollout_plan=monitoring["rollout_plan"],
+        inference_gateway_plan=inference_gateway,
+    )
     semantic_telemetry = build_semantic_telemetry_plan(root)
     deadline_alerts = build_deadline_alert_plan(root)
     cost_observability = build_cost_observability_report(root)

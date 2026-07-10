@@ -123,6 +123,41 @@ spec:
               cpu: "1"
               memory: 1Gi
 ---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: credit-risk-endpoint-picker
+  namespace: mlops-serving
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: credit-risk-endpoint-picker
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Pods
+      pods:
+        metric:
+          name: endpoint_picker_active_requests
+        target:
+          type: AverageValue
+          averageValue: "200"
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: credit-risk-endpoint-picker
+  namespace: mlops-serving
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: credit-risk-epp
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -137,6 +172,28 @@ spec:
       port: 9002
       targetPort: 9002
       appProtocol: http2
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: credit-risk-inference-fail-open-route
+  namespace: mlops-serving
+spec:
+  parentRefs:
+    - name: credit-risk-inference-gateway
+      sectionName: http
+  rules:
+    - matches:
+        - headers:
+            - name: x-endpoint-picker-state
+              value: unavailable
+          path:
+            type: PathPrefix
+            value: /v1/chat/completions
+      backendRefs:
+        - name: credit-risk-predictor-default
+          port: 80
+          weight: 100
 ---
 apiVersion: inference.networking.k8s.io/v1
 kind: InferencePool
@@ -194,3 +251,10 @@ spec:
             severity: warning
           annotations:
             summary: "Endpoint picker is unavailable; InferencePool should fail open to HTTPRoute fallback."
+        - alert: CreditRiskEndpointPickerHotShard
+          expr: max(endpoint_picker_active_requests{pool="credit-risk-inference-pool"}) / avg(endpoint_picker_active_requests{pool="credit-risk-inference-pool"}) > 2.5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Endpoint picker is producing uneven model-server load; inspect queue, cache, and token-demand signals."

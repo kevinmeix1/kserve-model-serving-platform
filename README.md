@@ -185,7 +185,7 @@ For Airflow multi-team preview readiness with serving-owned DAG Bundles, team-sc
 
 For Airflow 3 AssetWatchers, `BaseEventTrigger` contracts, shared-stream polling, `AssetAlias`, and conditional serving asset expressions, see [event-driven assets](docs/event-driven-assets.md).
 
-For model-aware routing with Gateway API Inference Extension, stable `InferencePool`, Endpoint Picker fallback, and priority objectives, see [Gateway API Inference Extension](docs/inference-gateway.md).
+For model-aware routing with Gateway API Inference Extension, stable `InferencePool`, Endpoint Picker fallback, priority objectives, endpoint-picker HPA/PDBs, fail-open drills, and deterministic routing simulation, see [Gateway API Inference Extension](docs/inference-gateway.md). The dashboard includes an **Inference Gateway** panel after `make demo`.
 
 For Kueue ResourceFlavor fallback, `TryNextFlavor` behavior, and serving spot/on-demand/GPU trade-offs, see [Kueue flavor fungibility](docs/kueue-flavor-fungibility.md).
 

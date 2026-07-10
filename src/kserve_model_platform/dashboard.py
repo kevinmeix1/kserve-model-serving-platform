@@ -37,6 +37,19 @@ def autoscaling_chips(value: object) -> str:
     return "".join(f'<span class="chip">{labels.get(key, key)} {esc(amount)}</span>' for key, amount in value.items())
 
 
+def gateway_decision_rows(plan: dict) -> list[dict]:
+    decisions = plan.get("simulation", {}).get("route_decisions", []) if isinstance(plan, dict) else []
+    return [
+        {
+            "class": compact_label(item.get("request_class")),
+            "priority": item.get("priority"),
+            "endpoint": compact_label(item.get("selected_endpoint")),
+            "p95": f"{item.get('estimated_p95_ms')} / {item.get('slo_ms')} ms",
+        }
+        for item in decisions[:4]
+    ]
+
+
 def compact_label(value: object) -> str:
     text = "" if value is None else str(value)
     if text.startswith("risk-model-"):
@@ -67,8 +80,18 @@ def rows(items: list[dict], columns: list[str]) -> str:
     return "\n".join(output)
 
 
-def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict, decision: dict, aliases: dict, rollout_plan: dict | None = None) -> Path:
+def render_dashboard(
+    output_path: str | Path,
+    *,
+    deployment: dict,
+    report: dict,
+    decision: dict,
+    aliases: dict,
+    rollout_plan: dict | None = None,
+    inference_gateway_plan: dict | None = None,
+) -> Path:
     rollout_plan = rollout_plan or {}
+    inference_gateway_plan = inference_gateway_plan or {}
     rollout_analysis = rollout_plan.get("analysis", {})
     check_rows = [
         {
@@ -92,6 +115,11 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
     ]
     route_counts = report.get("route_counts", {})
     action_label = str(decision.get("recommended_action", "")).replace("_", " ")
+    gateway_simulation = inference_gateway_plan.get("simulation", {})
+    gateway_picker = gateway_simulation.get("endpoint_picker", {})
+    gateway_slo = gateway_simulation.get("slo_summary", {})
+    gateway_fail_open = gateway_simulation.get("fail_open_drill", {})
+    gateway_rows = gateway_decision_rows(inference_gateway_plan)
     body = f"""
     <!doctype html>
     <html lang="en">
@@ -229,6 +257,17 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
                 <tr><th>Service</th><th>Namespace</th><th>Runtime</th><th>Traffic</th><th>Autoscaling</th></tr>
                 <tr><td>{compact_label(deployment.get('service_name'))}</td><td>{compact_label(deployment.get('namespace'))}</td><td>{compact_label(deployment.get('runtime'))}</td><td>{traffic_chips(deployment.get('traffic'))}</td><td>{autoscaling_chips(deployment.get('autoscaling'))}</td></tr>
               </table>
+            </div>
+            <div class="panel">
+              <h2>Inference Gateway</h2>
+              <div class="summary">
+                <div><span>Inference pool</span><strong>{compact_label(inference_gateway_plan.get('pool', {}).get('name', 'not planned'))}</strong></div>
+                <div><span>Endpoint picker</span><strong>{esc(gateway_picker.get('protocol', 'not planned'))}</strong></div>
+                <div><span>Failure mode</span><strong>{esc(gateway_picker.get('failure_mode', 'n/a'))}</strong></div>
+                <div><span>SLO classes</span><strong>{esc(gateway_slo.get('passed_classes', 0))}/{esc(gateway_slo.get('request_classes', 0))}</strong></div>
+                <div><span>Fallback route</span><strong>{esc(gateway_fail_open.get('fallback_route', 'n/a'))}</strong></div>
+              </div>
+              <table class="gateway-table" style="margin-top: 12px;"><tr><th>Class</th><th>Priority</th><th>Endpoint</th><th>p95/SLO</th></tr>{rows(gateway_rows, ['class', 'priority', 'endpoint', 'p95'])}</table>
             </div>
             <div class="panel">
               <h2>Recent Predictions</h2>

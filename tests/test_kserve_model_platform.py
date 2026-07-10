@@ -512,10 +512,24 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue(report["passed"])
             self.assertEqual(report["recommended_action"], "enable_gateway_inference_extension")
             self.assertEqual(report["pool"]["api_version"], "inference.networking.k8s.io/v1")
+            self.assertEqual(report["simulation"]["slo_summary"]["passed_classes"], report["simulation"]["slo_summary"]["request_classes"])
+            self.assertEqual(report["simulation"]["fail_open_drill"]["expected_behavior"], "FailOpen")
+            self.assertTrue(any(item["traffic_class"] == "batch" and item["priority"] < 0 for item in report["simulation"]["route_decisions"]))
             self.assertTrue((root / "reports" / "inference_gateway_plan.json").exists())
-        for expected in ["InferencePool", "InferenceObjective", "endpointPickerRef", "FailOpen", "HTTPRoute", "CreditRiskEndpointPickerUnavailable"]:
+        for expected in [
+            "InferencePool",
+            "InferenceObjective",
+            "endpointPickerRef",
+            "FailOpen",
+            "HTTPRoute",
+            "HorizontalPodAutoscaler",
+            "PodDisruptionBudget",
+            "credit-risk-inference-fail-open-route",
+            "CreditRiskEndpointPickerUnavailable",
+            "CreditRiskEndpointPickerHotShard",
+        ]:
             self.assertIn(expected, manifest)
-        for expected in ["Gateway API Inference Extension", "InferencePool", "Endpoint Picker", "InferenceObjective"]:
+        for expected in ["Gateway API Inference Extension", "InferencePool", "Endpoint Picker", "InferenceObjective", "deterministic routing simulation", "fail-open route"]:
             self.assertIn(expected, docs)
 
     def test_semantic_telemetry_plan_and_collector_assets_exist(self) -> None:
@@ -1212,6 +1226,10 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue((root / "reports" / "release_admission_decision.json").exists())
             self.assertTrue((root / "reports" / "orchestration_scorecard.json").exists())
             self.assertTrue((root / "reports" / "supply_chain_evidence.json").exists())
+            dashboard = (root / "reports" / "kserve_serving_dashboard.html").read_text(encoding="utf-8")
+            self.assertIn("Inference Gateway", dashboard)
+            self.assertIn("credit risk inference pool", dashboard.replace("-", " "))
+            self.assertIn("FailOpen", dashboard)
             self.assertEqual(result["simulation"]["success_count"], 120)
 
     def test_payload_contract_rejects_bad_request(self) -> None:
