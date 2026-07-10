@@ -1,12 +1,12 @@
 [project]
 name = "kserve-model-serving-platform"
-version = "0.1.0"
-requires-python = ">=3.9"
+version = "0.2.0"
+requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
 integrations = [
-  "kserve>=0.13",
+  "kserve>=0.18,<0.19",
   "mlflow>=2.14",
   "prometheus-client>=0.20",
   "fastapi>=0.111",
@@ -14,3 +14,21 @@ integrations = [
   "opentelemetry-api>=1.25"
 ]
 airflow33 = ["apache-airflow==3.3.0"]
+serving = [
+  "fastapi>=0.116,<1",
+  "prometheus-client>=0.22,<1",
+  "pydantic>=2.11,<3",
+  "uvicorn>=0.35,<1"
+]
+test = [
+  "httpx2>=2,<3",
+  "jsonschema>=4.26,<5",
+  "PyYAML>=6,<7"
+]
+
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

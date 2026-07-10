@@ -130,6 +130,19 @@ def monitor(output: str | Path) -> dict:
     return {"report": report, "decision": decision, "rollout_plan": rollout_plan, "dashboard": str(dashboard)}
 
 
+def runtime_init(output: str | Path, *, requests: int = 120) -> dict:
+    root = root_path(output)
+    deployment = deploy(root, challenger_percent=10)
+    simulation = simulate(root, requests=requests)
+    monitoring = monitor(root)
+    return {
+        "deployment": deployment,
+        "simulation": simulation,
+        "canary": monitoring["decision"],
+        "dashboard": monitoring["dashboard"],
+    }
+
+
 def governance(output: str | Path) -> dict:
     root = root_path(output)
     if not (root / "reports" / "canary_decision.json").exists():
@@ -302,6 +315,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     for command in [
         "demo",
+        "runtime-init",
         "deploy",
         "predict",
         "simulate",
@@ -363,11 +377,13 @@ def main(argv: list[str] | None = None) -> int:
     ]:
         cmd = sub.add_parser(command)
         cmd.add_argument("--output", default=".local")
-        if command in {"deploy", "simulate"}:
+        if command in {"deploy", "simulate", "runtime-init"}:
             cmd.add_argument("--requests", type=int, default=120)
     args = parser.parse_args(argv)
     if args.command == "demo":
         print(json.dumps(demo(args.output), indent=2, sort_keys=True))
+    elif args.command == "runtime-init":
+        print(json.dumps(runtime_init(args.output, requests=args.requests), indent=2, sort_keys=True))
     elif args.command == "deploy":
         print(json.dumps(deploy(args.output), indent=2, sort_keys=True))
     elif args.command == "predict":

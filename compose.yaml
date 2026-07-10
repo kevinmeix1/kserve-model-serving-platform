@@ -1,0 +1,101 @@
+name: kserve-model-serving-platform
+
+services:
+  state-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kserve-model-serving-platform:local
+    entrypoint: ["python", "-m", "kserve_model_platform"]
+    command: ["runtime-init", "--output", "/var/lib/kserve-platform"]
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - serving-state:/var/lib/kserve-platform
+    networks:
+      - serving
+    restart: "no"
+
+  predictor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kserve-model-serving-platform:local
+    depends_on:
+      state-init:
+        condition: service_completed_successfully
+    environment:
+      SERVING_STATE_ROOT: /var/lib/kserve-platform
+      SERVING_MODEL_NAME: credit-risk-router
+      SERVING_BOOTSTRAP_STATE: "false"
+      INFERENCE_MAX_CONCURRENCY: "32"
+      INFERENCE_MAX_BATCH_SIZE: "128"
+      INFERENCE_MAX_REQUEST_BYTES: "262144"
+      INFERENCE_TIMEOUT_SECONDS: "0.25"
+      INFERENCE_QUEUE_TIMEOUT_SECONDS: "0.05"
+      MODEL_RELOAD_INTERVAL_SECONDS: "0.25"
+      LOG_LEVEL: INFO
+    ports:
+      - "${SERVING_PORT:-8080}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - serving-state:/var/lib/kserve-platform
+    networks:
+      - serving
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/v2/health/ready', timeout=1).read()",
+        ]
+      interval: 5s
+      timeout: 2s
+      retries: 12
+      start_period: 5s
+    stop_grace_period: 15s
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.5.4
+    profiles: ["observability"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=24h
+      - --web.enable-lifecycle
+    depends_on:
+      predictor:
+        condition: service_healthy
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./monitoring/prometheus/compose.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - serving
+    restart: unless-stopped
+
+networks:
+  serving:
+    name: kserve-serving
+
+volumes:
+  serving-state:
+  prometheus-data:

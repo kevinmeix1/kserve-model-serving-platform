@@ -11,7 +11,7 @@ from kserve_model_platform.airflow_stateful_orchestration import build_airflow_s
 from kserve_model_platform.asset_partitioning import build_asset_partitioning_plan
 from kserve_model_platform.chaos import run_chaos_drill
 from kserve_model_platform.cloud_migration import build_cloud_migration_plan
-from kserve_model_platform.cli import demo, monitor, promote, rollback, simulate
+from kserve_model_platform.cli import demo, monitor, promote, rollback, runtime_init, simulate
 from kserve_model_platform.cohort_fair_sharing import build_cohort_fair_sharing_plan
 from kserve_model_platform.control_plane_diagnostics import build_control_plane_diagnostics_plan
 from kserve_model_platform.constrained_impersonation import build_constrained_impersonation_plan
@@ -1130,6 +1130,18 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertEqual(plan["next_percent"], 25)
             self.assertEqual(failed["action"], "rollback")
 
+    def test_runtime_init_has_no_repository_scaffolding_dependency(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = runtime_init(root, requests=24)
+
+            self.assertEqual(result["simulation"]["success_count"], 24)
+            self.assertEqual(result["deployment"]["runtime"], "kserve-v2-custom-runtime")
+            self.assertTrue((root / "registry" / "credit-risk" / "aliases.json").exists())
+            self.assertTrue((root / "deployments" / "kserve_state.json").exists())
+            self.assertTrue((root / "reports" / "kserve_serving_dashboard.html").exists())
+            self.assertFalse((root / "reports" / "governance_evidence_bundle.json").exists())
+
     def test_demo_writes_dashboard_and_passes_canary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1246,6 +1258,36 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue(rolled_back["rolled_back"])
             self.assertEqual(after_rollback["champion"], "risk-model-2026-07-01")
             self.assertEqual(deployment["status"], "Ready")
+
+    def test_runnable_kserve_v2_runtime_assets_are_wired(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        api = (repo / "src" / "kserve_model_platform" / "api.py").read_text(encoding="utf-8")
+        runtime = (repo / "src" / "kserve_model_platform" / "runtime_state.py").read_text(encoding="utf-8")
+        protocol = (repo / "src" / "kserve_model_platform" / "v2_protocol.py").read_text(encoding="utf-8")
+        compose = (repo / "compose.yaml").read_text(encoding="utf-8")
+        dockerfile = (repo / "Dockerfile").read_text(encoding="utf-8")
+        constraints = (repo / "requirements-serving.lock").read_text(encoding="utf-8")
+        manifest = (repo / "kserve" / "custom-runtime-inferenceservice.yaml").read_text(encoding="utf-8")
+        workflow = (repo / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        docs = (repo / "docs" / "kserve-v2-serving-runtime.md").read_text(encoding="utf-8")
+
+        for expected in ["/v2/health/live", "/v2/health/ready", "/v2/models/{model_name}/infer", "JsonLogFormatter", "kserve_inference_requests_total"]:
+            self.assertIn(expected, api)
+        for expected in ["PredictionLedger", "SnapshotManager", "INFERENCE_MAX_CONCURRENCY", "INFERENCE_MAX_REQUEST_BYTES"]:
+            self.assertIn(expected, runtime)
+        for expected in ["InferenceRequest", "decode_batch", "ModelVersionNotFound", "requested output names must be unique"]:
+            self.assertIn(expected, protocol)
+        for expected in ["state-init", "runtime-init", "service_completed_successfully", "service_healthy", "read_only: true", "cap_drop"]:
+            self.assertIn(expected, compose)
+        for expected in ["USER 65532:65532", "HEALTHCHECK", "--workers", "1", "requirements-serving.lock"]:
+            self.assertIn(expected, dockerfile)
+        for expected in ["startupProbe", "readinessProbe", "livenessProbe", "readOnlyRootFilesystem: true", "runAsNonRoot: true", "fsGroup: 65532", "shared-idempotency-store-required", "serving.kserve.io/autoscaler-class: none"]:
+            self.assertIn(expected, manifest)
+        self.assertIn("fastapi==0.139.0", constraints)
+        self.assertIn("serving-runtime-contract", workflow)
+        self.assertIn("make compose-smoke", workflow)
+        self.assertIn("make kserve-schema-contract", workflow)
+        self.assertIn("Production Boundary", docs)
 
 
 if __name__ == "__main__":

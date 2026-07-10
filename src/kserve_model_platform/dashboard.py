@@ -44,7 +44,10 @@ def compact_label(value: object) -> str:
     elif text.startswith("req_"):
         display = f"req {text.split('_')[-1].lstrip('0') or '0'}"
     else:
-        display = {"kserve-sklearnserver": "KServe sklearn"}.get(text, text.replace("-", " "))
+        display = {
+            "kserve-sklearnserver": "KServe sklearn",
+            "kserve-v2-custom-runtime": "KServe V2 custom",
+        }.get(text, text.replace("-", " "))
     return f'<span class="nowrap" title="{esc(text)}">{esc(display)}</span>'
 
 
@@ -109,6 +112,7 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
         .metric span {{ display: block; color: #5b6b7d; font-size: 13px; margin-bottom: 10px; }}
         .metric strong {{ display: block; font-size: 24px; line-height: 1.2; overflow-wrap: anywhere; }}
         .layout {{ display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, .42fr); gap: 16px; align-items: start; }}
+        .layout > div {{ min-width: 0; }}
         .panel {{ padding: 16px; margin-top: 16px; }}
         table {{ width: 100%; table-layout: fixed; border-collapse: collapse; border: 1px solid #e3e9f0; border-radius: 6px; overflow: hidden; }}
         th, td {{ border-bottom: 1px solid #e8edf3; padding: 11px 12px; text-align: left; font-size: 14px; overflow-wrap: anywhere; vertical-align: top; }}
@@ -120,11 +124,26 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
         .fail {{ color: #991b1b; background: #fee2e2; }}
         .chip {{ display: inline-block; margin: 0 5px 5px 0; padding: 4px 8px; border-radius: 999px; background: #ecfeff; color: #0e7490; font-size: 12px; font-weight: 800; white-space: nowrap; }}
         .nowrap {{ display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }}
-        .summary {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }}
-        .summary div {{ border: 1px solid #e3e9f0; border-radius: 6px; padding: 12px; min-height: 74px; }}
+        .summary {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid #e3e9f0; border-radius: 6px; overflow: hidden; }}
+        .summary div {{ padding: 12px; min-height: 74px; background: #fbfcfe; border-right: 1px solid #e3e9f0; border-bottom: 1px solid #e3e9f0; }}
+        .summary div:nth-child(2n) {{ border-right: 0; }}
+        .summary div:nth-last-child(-n+2) {{ border-bottom: 0; }}
         .summary span {{ display: block; color: #64748b; font-size: 12px; margin-bottom: 8px; }}
         .summary strong {{ display: block; font-size: 18px; overflow-wrap: anywhere; }}
-        @media (max-width: 900px) {{ header {{ padding: 22px 18px; }} main {{ padding: 18px; }} .layout {{ grid-template-columns: 1fr; }} }}
+        @media (max-width: 900px) {{
+          header {{ padding: 22px 18px; }}
+          main {{ padding: 18px; }}
+          .layout {{ grid-template-columns: 1fr; }}
+          .panel {{ max-width: 100%; overflow-x: auto; }}
+          .canary-table {{ min-width: 520px; }}
+          .deployment-table {{ min-width: 720px; }}
+          .predictions-table {{ min-width: 760px; }}
+          th, td {{ overflow-wrap: normal; word-break: normal; }}
+        }}
+        @media (max-width: 600px) {{
+          .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+          .grid .metric:last-child {{ grid-column: 1 / -1; }}
+        }}
       </style>
     </head>
     <body>
@@ -138,26 +157,36 @@ def render_dashboard(output_path: str | Path, *, deployment: dict, report: dict,
           <div class="metric"><span>Challenger</span><strong>{compact_label(aliases.get('challenger') or 'none')}</strong></div>
           <div class="metric"><span>Canary status</span><strong>{badge(decision.get('passed', False))}</strong></div>
           <div class="metric"><span>Latency p95</span><strong>{esc(report.get('latency_ms', {}).get('p95'))} ms</strong></div>
+          <div class="metric"><span>Serving protocol</span><strong>Open Inference V2</strong></div>
         </section>
         <section class="layout">
           <div>
             <div class="panel">
               <h2>Canary Evaluation</h2>
-              <table><tr><th>Check</th><th>Status</th><th>Observed</th><th>Threshold</th></tr>{rows(check_rows, ['check', 'status', 'observed', 'threshold'])}</table>
+              <table class="canary-table"><tr><th>Check</th><th>Status</th><th>Observed</th><th>Threshold</th></tr>{rows(check_rows, ['check', 'status', 'observed', 'threshold'])}</table>
             </div>
             <div class="panel">
               <h2>KServe Deployment</h2>
-              <table>
+              <table class="deployment-table">
                 <tr><th>Service</th><th>Namespace</th><th>Runtime</th><th>Traffic</th><th>Autoscaling</th></tr>
                 <tr><td>{compact_label(deployment.get('service_name'))}</td><td>{compact_label(deployment.get('namespace'))}</td><td>{compact_label(deployment.get('runtime'))}</td><td>{traffic_chips(deployment.get('traffic'))}</td><td>{autoscaling_chips(deployment.get('autoscaling'))}</td></tr>
               </table>
             </div>
             <div class="panel">
               <h2>Recent Predictions</h2>
-              <table><tr><th>Request</th><th>Route</th><th>Model</th><th>Score</th><th>Band</th><th>Latency</th></tr>{rows(prediction_rows, ['request', 'route', 'model', 'score', 'band', 'latency'])}</table>
+              <table class="predictions-table"><tr><th>Request</th><th>Route</th><th>Model</th><th>Score</th><th>Band</th><th>Latency</th></tr>{rows(prediction_rows, ['request', 'route', 'model', 'score', 'band', 'latency'])}</table>
             </div>
           </div>
           <div>
+            <div class="panel">
+              <h2>Runtime Contract</h2>
+              <div class="summary">
+                <div><span>Readiness</span><strong>{esc(deployment.get('status'))}</strong></div>
+                <div><span>Batch limit</span><strong>128</strong></div>
+                <div><span>Concurrency limit</span><strong>32</strong></div>
+                <div><span>Idempotency</span><strong>SQLite WAL</strong></div>
+              </div>
+            </div>
             <div class="panel">
               <h2>Rollout Control Plane</h2>
               <div class="summary">

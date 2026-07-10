@@ -1,7 +1,10 @@
-.PHONY: demo deploy predict simulate monitor promote rollback health plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan device-plan resource-health-status advanced-device-sharing admin-access-diagnostics inplace-resize-plan topology-plan kuberay-plan inference-gateway-plan semantic-telemetry-plan deadline-alerts-plan cost-observability elastic-workload-plan indexed-job-resilience provisioning-admission multikueue-dispatch model-cache dag-bundle-plan asset-partitioning-plan airflow-stateful-orchestration airflow-sdk-contract multi-team-readiness event-driven-assets pod-resource-envelopes cohort-fair-sharing flavor-fungibility pending-workload-visibility tenancy-report identity-report performance-budget queue-simulation workload-aware-scheduling runtime-security control-plane-diagnostics memory-qos hpa-scale-zero suspended-job-resources constrained-impersonation release-admission ci-verify minikube-up kubernetes-plan test clean
+.PHONY: demo runtime-init deploy predict simulate monitor promote rollback health api-run api-smoke test-api kserve-schema-contract compose-config compose-up compose-down compose-smoke plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan device-plan resource-health-status advanced-device-sharing admin-access-diagnostics inplace-resize-plan topology-plan kuberay-plan inference-gateway-plan semantic-telemetry-plan deadline-alerts-plan cost-observability elastic-workload-plan indexed-job-resilience provisioning-admission multikueue-dispatch model-cache dag-bundle-plan asset-partitioning-plan airflow-stateful-orchestration airflow-sdk-contract multi-team-readiness event-driven-assets pod-resource-envelopes cohort-fair-sharing flavor-fungibility pending-workload-visibility tenancy-report identity-report performance-budget queue-simulation workload-aware-scheduling runtime-security control-plane-diagnostics memory-qos hpa-scale-zero suspended-job-resources constrained-impersonation release-admission ci-verify minikube-up kubernetes-plan test clean
 
 demo:
 	PYTHONPATH=src python3 -m kserve_model_platform demo --output .local
+
+runtime-init:
+	PYTHONPATH=src python3 -m kserve_model_platform runtime-init --output .local
 
 deploy:
 	PYTHONPATH=src python3 -m kserve_model_platform deploy --output .local
@@ -172,7 +175,16 @@ release-admission:
 	PYTHONPATH=src python3 -m kserve_model_platform release-admission --output .local
 
 ci-verify:
-	PYTHONPATH=src python3 -m compileall -q src tests
+	PYTHONPATH=src python3 -m compileall -q src tests tools
+	test -f Dockerfile
+	test -f compose.yaml
+	test -f requirements-serving.lock
+	test -f src/kserve_model_platform/api.py
+	test -f src/kserve_model_platform/runtime_state.py
+	test -f src/kserve_model_platform/v2_protocol.py
+	test -f kserve/custom-runtime-inferenceservice.yaml
+	test -f docs/kserve-v2-serving-runtime.md
+	test -f docs/screenshots/dashboard.png
 	test -f .local/reports/kserve_serving_dashboard.html
 	test -f .local/reports/index.html
 	test -f .local/reports/governance_evidence_bundle.json
@@ -272,11 +284,41 @@ rollback:
 health:
 	PYTHONPATH=src python3 -m kserve_model_platform health --output .local
 
+api-run:
+	LOG_LEVEL=INFO SERVING_STATE_ROOT=.local PYTHONPATH=src python3 -m uvicorn kserve_model_platform.api:app --host 0.0.0.0 --port 8080 --workers 1 --no-access-log
+
+api-smoke:
+	python3 tools/smoke_serving_api.py --base-url "$${SERVING_BASE_URL:-http://127.0.0.1:8080}"
+
+test-api:
+	PYTHONPATH=src python3 -m unittest tests.test_serving_api -v
+
+kserve-schema-contract:
+	python3 tools/validate_kserve_manifest.py
+
+compose-config:
+	docker compose config --quiet
+
+compose-up:
+	docker compose up --build --wait
+
+compose-down:
+	docker compose down --volumes --remove-orphans
+
+compose-smoke:
+	@set -eu; \
+		mkdir -p .local/reports; \
+		cleanup() { docker compose logs --no-color > .local/reports/compose-smoke.log 2>&1 || true; docker compose down --volumes --remove-orphans >/dev/null 2>&1 || true; }; \
+		trap cleanup EXIT; \
+		docker compose up --build --wait; \
+		$(MAKE) api-smoke
+
 minikube-up:
 	@echo "Start Minikube and apply the serving stack:"
 	@echo "  minikube start --cpus=4 --memory=8192"
 	@echo "  kubectl create namespace mlops-serving --dry-run=client -o yaml | kubectl apply -f -"
 	@echo "  kubectl apply -f kserve/production-hardening.yaml"
+	@echo "  kubectl apply -f kserve/custom-runtime-inferenceservice.yaml"
 	@echo "  kubectl apply -f kserve/inferenceservice-canary.yaml"
 	@echo "  kubectl apply -f kserve/local-model-cache.yaml"
 	@echo "  kubectl apply -f kubernetes/serving-release-workloads.yaml"

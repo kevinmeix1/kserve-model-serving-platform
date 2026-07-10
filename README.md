@@ -2,15 +2,20 @@
 
 [![KServe Serving CI](https://github.com/kevinmeix1/kserve-model-serving-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/kevinmeix1/kserve-model-serving-platform/actions/workflows/ci.yml)
 
-A production-style model serving project focused on Kubernetes inference operations: champion/challenger rollout, shadow scoring, request contracts, idempotent predictions, canary gates, rollback, and observability.
+A production-style model serving project focused on Kubernetes inference operations: a runnable KServe V2 data plane, champion/challenger rollout, shadow scoring, request contracts, durable idempotency, canary gates, rollback, and observability.
 
-The default demo is local-first and fast to run. The repo also includes KServe, Prometheus, and Minikube scaffolding for a production-shaped deployment path.
+The deterministic demo is local-first and fast to run. A containerized FastAPI runtime exposes the same model state through the Open Inference Protocol, while the KServe, Prometheus, and Minikube assets show the cluster deployment path.
 
 ![KServe serving dashboard](docs/screenshots/dashboard.png)
 
 ## What This Demonstrates
 
-- KServe-style InferenceService deployment metadata
+- Runnable KServe Open Inference Protocol V2 HTTP runtime
+- Batched and version-pinned inference with strict tensor contracts
+- Atomic last-known-good model snapshots during alias promotion
+- Durable request idempotency across process restarts
+- Bounded concurrency, queue budgets, and inference deadlines
+- KServe InferenceService deployment metadata and custom runtime manifest
 - Champion and challenger model aliases
 - Canary traffic routing
 - Shadow scoring for champion-routed requests
@@ -27,7 +32,7 @@ The default demo is local-first and fast to run. The repo also includes KServe, 
 ```mermaid
 flowchart LR
     A["Prediction requests"] --> B["Request contract validation"]
-    B -->|valid| C["KServe router"]
+    B -->|valid| C["KServe V2 custom runtime"]
     B -->|invalid| D["Rejected request log"]
     C --> E["Champion model"]
     C --> F["Challenger model"]
@@ -57,16 +62,34 @@ Open the generated dashboard:
 open .local/reports/kserve_serving_dashboard.html
 ```
 
+To run the actual HTTP serving boundary:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e '.[serving,test]'
+make demo
+make api-run
+```
+
+In another terminal, run `make api-smoke`. The container path is `make compose-up`; it serves the dashboard at `http://127.0.0.1:8080/dashboard` and the API contract at `/docs`.
+
 ## Commands
 
 ```bash
 make deploy      # create registry aliases and local KServe deployment state
+make runtime-init # initialize only the model, traffic, logs, and dashboard assets
 make simulate    # generate and score synthetic prediction traffic
 make monitor     # build observability report and canary decision
 make promote     # promote challenger when canary gates pass
 make rollback    # restore previous champion
 make predict     # run one online request
 make health      # inspect serving readiness
+make api-run     # start the KServe V2-compatible HTTP runtime
+make api-smoke   # verify health, metadata, batch inference, replay, and metrics
+make test-api    # run serving data-plane contract tests
+make kserve-schema-contract # validate the manifest against KServe 0.18
+make compose-up  # build and start the reproducible container path
+make compose-smoke # build, test, and tear down the container path
 make minikube-up # print local cluster bootstrap commands
 make test        # run unit and integration tests
 ```
@@ -74,6 +97,8 @@ make test        # run unit and integration tests
 ## Production-Grade Refinements
 
 See [production-grade refinements](docs/production-grade-refinements.md) for the KServe hardening, traffic policy, shadow scoring, canary gates, and rollback improvements.
+
+For the executable Open Inference V2 server, atomic model snapshots, persistent idempotency, probe semantics, and container smoke gate, see [KServe V2 serving runtime](docs/kserve-v2-serving-runtime.md).
 
 For the latest progressive rollout orchestration pass, see [advanced orchestration assessment](docs/advanced-orchestration-assessment.md).
 
@@ -200,13 +225,17 @@ The demo keeps promotion as an explicit command. This models a real approval wor
 | `.local/deployments/kserve_state.json` | KServe InferenceService status |
 | `.local/logs/predictions.jsonl` | structured inference logs |
 | `.local/reports/serving_observability.json` | Prometheus, OpenTelemetry, Evidently, or warehouse monitor |
+| `src/kserve_model_platform/api.py` | KServe V2-compatible custom prediction data plane |
+| `.local/api/idempotency.sqlite3` | local durable ledger; Redis or Postgres in a multi-pod deployment |
+| `compose.yaml` | reproducible local predictor and Prometheus runtime |
+| `kserve/custom-runtime-inferenceservice.yaml` | custom predictor with probes and a restricted security context |
 | `kserve/inferenceservice-canary.yaml` | Kubernetes canary serving manifest |
 | `kserve/rollback-patch.yaml` | emergency rollback manifest |
 | `contracts/prediction_request_contract.yml` | serving API data contract |
 
 ## Production Notes
 
-In a real deployment, the router would be implemented with KServe traffic splitting, a gateway, or a thin service layer in front of multiple InferenceServices. Prediction logs would include trace IDs, model version, request hash, route, latency, validation errors, and feature payload references.
+The included router is executable and suitable for local protocol and failure-semantics testing. A multi-pod deployment would move idempotency to a shared store, resolve models from an external MLflow registry and object store, and normally put tenant authentication, rate limits, and traffic policy at the gateway. Prediction logs would include trace IDs, model version, request hash, route, latency, validation errors, and feature payload references without raw sensitive features.
 
 The key production idea is that model serving is not only a REST endpoint. It is a release system with traffic policy, observability, rollback, and strict request contracts.
 
