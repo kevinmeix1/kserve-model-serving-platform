@@ -64,6 +64,7 @@ from .suspended_job_resources import build_suspended_job_resource_plan
 from .tenancy import build_tenancy_report
 from .topology_placement import build_topology_placement_plan
 from .traceability import build_trace_report
+from .transformer_explainer_readiness import build_transformer_explainer_readiness_plan
 from .workload_aware_scheduling import build_workload_aware_scheduling_plan
 
 
@@ -126,6 +127,12 @@ def monitor(output: str | Path) -> dict:
     semantic_telemetry_plan = read_json(semantic_telemetry_path) if semantic_telemetry_path.exists() else build_semantic_telemetry_plan(root)
     llm_readiness_path = root / "reports" / "llm_inference_readiness_plan.json"
     llm_readiness = read_json(llm_readiness_path) if llm_readiness_path.exists() else None
+    transformer_explainer_path = root / "reports" / "transformer_explainer_readiness_plan.json"
+    transformer_explainer = (
+        read_json(transformer_explainer_path)
+        if transformer_explainer_path.exists()
+        else build_transformer_explainer_readiness_plan(root)
+    )
     dashboard = render_dashboard(
         root / "reports" / "kserve_serving_dashboard.html",
         deployment=deployment,
@@ -136,8 +143,15 @@ def monitor(output: str | Path) -> dict:
         inference_gateway_plan=inference_gateway_plan,
         semantic_telemetry_plan=semantic_telemetry_plan,
         llm_readiness_plan=llm_readiness,
+        transformer_explainer_plan=transformer_explainer,
     )
-    return {"report": report, "decision": decision, "rollout_plan": rollout_plan, "dashboard": str(dashboard)}
+    return {
+        "report": report,
+        "decision": decision,
+        "rollout_plan": rollout_plan,
+        "transformer_explainer": transformer_explainer,
+        "dashboard": str(dashboard),
+    }
 
 
 def runtime_init(output: str | Path, *, requests: int = 120) -> dict:
@@ -217,6 +231,7 @@ def demo(output: str | Path) -> dict:
     inference_gateway = build_inference_gateway_plan(root)
     semantic_telemetry = build_semantic_telemetry_plan(root)
     llm_readiness = build_llm_inference_readiness_plan(root)
+    transformer_explainer = build_transformer_explainer_readiness_plan(root)
     render_dashboard(
         root / "reports" / "kserve_serving_dashboard.html",
         deployment=deployment,
@@ -227,6 +242,7 @@ def demo(output: str | Path) -> dict:
         inference_gateway_plan=inference_gateway,
         semantic_telemetry_plan=semantic_telemetry,
         llm_readiness_plan=llm_readiness,
+        transformer_explainer_plan=transformer_explainer,
     )
     deadline_alerts = build_deadline_alert_plan(root)
     cost_observability = build_cost_observability_report(root)
@@ -297,6 +313,7 @@ def demo(output: str | Path) -> dict:
         "inference_gateway": inference_gateway,
         "semantic_telemetry": semantic_telemetry,
         "llm_readiness": llm_readiness,
+        "transformer_explainer": transformer_explainer,
         "deadline_alerts": deadline_alerts,
         "cost_observability": cost_observability,
         "elastic_workload": elastic_workload,
@@ -370,6 +387,7 @@ def main(argv: list[str] | None = None) -> int:
         "inference-gateway-plan",
         "semantic-telemetry-plan",
         "llm-inference-readiness",
+        "transformer-explainer-readiness",
         "deadline-alerts-plan",
         "cost-observability",
         "elastic-workload-plan",
@@ -470,6 +488,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_semantic_telemetry_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "llm-inference-readiness":
         print(json.dumps(build_llm_inference_readiness_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "transformer-explainer-readiness":
+        print(json.dumps(build_transformer_explainer_readiness_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "deadline-alerts-plan":
         print(json.dumps(build_deadline_alert_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "cost-observability":

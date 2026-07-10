@@ -91,17 +91,45 @@ def render_dashboard(
     inference_gateway_plan: dict | None = None,
     semantic_telemetry_plan: dict | None = None,
     llm_readiness_plan: dict | None = None,
+    transformer_explainer_plan: dict | None = None,
 ) -> Path:
     rollout_plan = rollout_plan or {}
     inference_gateway_plan = inference_gateway_plan or {}
     semantic_telemetry_plan = semantic_telemetry_plan or {}
     llm_readiness_plan = llm_readiness_plan or {}
+    transformer_explainer_plan = transformer_explainer_plan or {}
     rollout_analysis = rollout_plan.get("analysis", {})
     genai_rollout = semantic_telemetry_plan.get("genai_rollout_metrics", {})
     genai_metrics = {item.get("name"): item for item in genai_rollout.get("metrics", [])}
     llm_contract = llm_readiness_plan.get("serving_contract", {})
     llm_routing = llm_readiness_plan.get("routing", {})
     llm_models = llm_readiness_plan.get("models", [])
+    transformer_collocation = transformer_explainer_plan.get("collocation_decision", {})
+    transformer_stages = transformer_explainer_plan.get("serving_stages", [])
+    sync_budget_ms = sum(
+        float(stage.get("latency_budget_ms", 0))
+        for stage in transformer_stages
+        if stage.get("role") in {"transformer", "predictor"}
+    )
+    declared_roles = sorted({str(stage.get("role")) for stage in transformer_stages if stage.get("role")})
+    explainer_stage = next((stage for stage in transformer_stages if stage.get("role") == "explainer"), {})
+    transformer_health = next((stage.get("health_gate") for stage in transformer_stages if stage.get("role") == "transformer"), "not planned")
+    transformer_status = "Ready" if transformer_explainer_plan.get("passed") else "Needs review"
+    transformer_collocation_label = (
+        "Separate + async explainer"
+        if transformer_collocation.get("current_choice") == "separate transformer, async explainer"
+        else transformer_collocation.get("current_choice", "not planned")
+    )
+    transformer_health_label = (
+        "Predictor health gated"
+        if "predictor health" in str(transformer_health)
+        else transformer_health
+    )
+    transformer_action_label = (
+        "Enable topology"
+        if transformer_explainer_plan.get("recommended_action") == "enable_transformer_explainer_topology"
+        else transformer_explainer_plan.get("recommended_action", "not planned")
+    )
     check_rows = [
         {
             "check": LABELS.get(check["name"], check["name"]),
@@ -322,6 +350,18 @@ def render_dashboard(
                 <div><span>Artifact format</span><strong>{compact_label(llm_contract.get('artifact_format', 'not planned'))}</strong></div>
                 <div><span>Routing SLOs</span><strong>{esc(llm_routing.get('passed_classes', 0))}/{esc(llm_routing.get('request_classes', 0))}</strong></div>
                 <div><span>Prefill/decode replicas</span><strong>{esc(sum(item.get('prefill_replicas', 0) for item in llm_models))}/{esc(sum(item.get('decode_replicas', 0) for item in llm_models))}</strong></div>
+              </div>
+            </div>
+            <div class="panel">
+              <h2>Transformer And Explainer Readiness</h2>
+              <div class="summary">
+                <div><span>Status</span><strong>{badge(bool(transformer_explainer_plan.get('passed', False)))} {esc(transformer_status)}</strong></div>
+                <div><span>Roles declared</span><strong>{esc(len(declared_roles))} roles</strong></div>
+                <div><span>Sync budget</span><strong>{esc(round(sync_budget_ms, 1))} ms</strong></div>
+                <div><span>Collocation</span><strong>{compact_label(transformer_collocation_label)}</strong></div>
+                <div><span>Transformer health</span><strong>{compact_label(transformer_health_label)}</strong></div>
+                <div><span>Explainer mode</span><strong>{compact_label(explainer_stage.get('deployment_mode', 'not planned'))}</strong></div>
+                <div><span>Action</span><strong>{compact_label(transformer_action_label)}</strong></div>
               </div>
             </div>
             <div class="panel">

@@ -8,7 +8,7 @@ The deterministic demo is local-first and fast to run. A containerized FastAPI r
 
 ![KServe serving dashboard](docs/screenshots/dashboard.png)
 
-[Watch the narrated judge demo](docs/demo/kserve-judge-demo.mp4) or follow the [five-minute demo runbook](docs/judge-demo.md). A verified mobile capture is available at [docs/screenshots/dashboard-mobile.png](docs/screenshots/dashboard-mobile.png), and the LLM readiness dashboard capture is at [docs/screenshots/dashboard-llm-readiness.png](docs/screenshots/dashboard-llm-readiness.png).
+[Watch the narrated judge demo](docs/demo/kserve-judge-demo.mp4) or follow the [five-minute demo runbook](docs/judge-demo.md). A verified mobile capture is available at [docs/screenshots/dashboard-mobile.png](docs/screenshots/dashboard-mobile.png), the LLM readiness dashboard capture is at [docs/screenshots/dashboard-llm-readiness.png](docs/screenshots/dashboard-llm-readiness.png), and the Transformer/Explainer readiness capture is at [docs/screenshots/dashboard-transformer-explainer.png](docs/screenshots/dashboard-transformer-explainer.png).
 
 ## What This Demonstrates
 
@@ -29,6 +29,7 @@ The deterministic demo is local-first and fast to run. A containerized FastAPI r
 - Interactive inference lab backed by the live Open Inference V2 endpoint
 - Payload-free console status API for snapshot, ledger, and worker evidence
 - Generative inference readiness plan for KServe `LLMInferenceService`, vLLM, OCI ModelCar artifacts, endpoint picking, and TTFT/TPOT gates
+- Predictor/Transformer/Explainer topology readiness with transformer predictor-health gates, async explainer scaling, bounded sync latency, and fallback routes
 - Latency, error rate, throughput, route mix, and score distribution monitoring
 - Canary promotion gates
 - Model rollback to previous champion
@@ -96,6 +97,7 @@ make health      # inspect serving readiness
 make api-run     # start the KServe V2-compatible HTTP runtime
 make api-smoke   # verify health, metadata, batch inference, replay, and metrics
 make llm-inference-readiness # generate KServe LLM/vLLM readiness evidence
+make transformer-explainer-readiness # generate Predictor/Transformer/Explainer topology evidence
 make test-api    # run serving data-plane contract tests
 make lint-api    # lint the executable serving boundary
 make verify-serving-lock # reject missing, extra, or version-drifted dependencies
@@ -210,6 +212,8 @@ For Kubernetes v1.36 constrained impersonation, `ConstrainedImpersonation`, and 
 For portable OpenTelemetry attributes, GenAI token/cost fields, Kubernetes correlation, telemetry redaction guardrails, and Argo/Prometheus rollout gates for token budget, queue latency, cache hit ratio, and groundedness proxy, see [semantic telemetry](docs/semantic-telemetry.md).
 
 For KServe `LLMInferenceService`, vLLM, OCI ModelCar artifact controls, Gateway API endpoint picking, TTFT/TPOT budgets, LoRA adapter capacity, and prefill/decode scaling, see [LLM inference readiness](docs/llm-inference-readiness.md). The dashboard includes an **LLM Inference Readiness** panel after `make demo`.
+
+For KServe Predictor, Transformer, and async Explainer topology, separate-by-default scaling, collocation trade-offs, predictor-health readiness gates, and fallback routing, see [Transformer and Explainer readiness](docs/transformer-explainer-readiness.md). The dashboard includes a **Transformer And Explainer Readiness** panel after `make demo`.
 
 For serving tenant quotas, Kueue cohorts, Airflow pools, rollback reservations, chargeback labels, and noisy-neighbor controls, see [multi-tenant fairness](docs/multi-tenant-fairness.md).
 

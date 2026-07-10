@@ -34,6 +34,7 @@ def render_artifact_index(root: str | Path, *, title: str, description: str, das
         ("Inference Gateway", "inference_gateway_plan.json", "Gateway API Inference Extension pool, endpoint picker fallback, traffic priority, and routing signals."),
         ("Semantic Telemetry", "semantic_telemetry_plan.json", "OpenTelemetry semantic attributes, GenAI token/cost fields, Kubernetes correlation, and redaction guardrails."),
         ("LLM Inference Readiness", "llm_inference_readiness_plan.json", "KServe LLMInferenceService, vLLM, OCI ModelCar, Gateway API endpoint picking, TTFT/TPOT budgets, and LoRA capacity guardrails."),
+        ("Transformer Explainer Readiness", "transformer_explainer_readiness_plan.json", "KServe Predictor, Transformer, and async Explainer topology with health gates, latency budget, and fallback plan."),
         ("Deadline Alerts", "deadline_alert_plan.json", "Airflow 3 rollout queue, shadow warmup, route convergence, and rollback deadline policies."),
         ("Cost Observability", "cost_observability_report.json", "OpenCost serving unit cost, traffic-class budgets, GPU explainer spend, and allocation labels."),
         ("Elastic Workloads", "elastic_workload_plan.json", "Kueue Workload Slices, JobSet shadow analysis, replacement slices, GPU explainers, and rollback quota recovery."),

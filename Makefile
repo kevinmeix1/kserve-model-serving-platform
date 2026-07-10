@@ -1,4 +1,4 @@
-.PHONY: demo runtime-init deploy predict simulate monitor promote rollback health api-run api-smoke demo-voice demo-video test-api lint-api verify-serving-lock package package-smoke kserve-schema-contract compose-config compose-up compose-down compose-smoke plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan device-plan resource-health-status advanced-device-sharing admin-access-diagnostics inplace-resize-plan topology-plan kuberay-plan inference-gateway-plan semantic-telemetry-plan llm-inference-readiness deadline-alerts-plan cost-observability elastic-workload-plan indexed-job-resilience provisioning-admission multikueue-dispatch model-cache dag-bundle-plan asset-partitioning-plan airflow-stateful-orchestration airflow-sdk-contract multi-team-readiness event-driven-assets pod-resource-envelopes cohort-fair-sharing flavor-fungibility pending-workload-visibility tenancy-report identity-report performance-budget queue-simulation workload-aware-scheduling runtime-security control-plane-diagnostics memory-qos hpa-scale-zero suspended-job-resources constrained-impersonation release-admission ci-verify minikube-up kubernetes-plan test clean
+.PHONY: demo runtime-init deploy predict simulate monitor promote rollback health api-run api-smoke demo-voice demo-video test-api lint-api verify-serving-lock package package-smoke kserve-schema-contract compose-config compose-up compose-down compose-smoke plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan device-plan resource-health-status advanced-device-sharing admin-access-diagnostics inplace-resize-plan topology-plan kuberay-plan inference-gateway-plan semantic-telemetry-plan llm-inference-readiness transformer-explainer-readiness deadline-alerts-plan cost-observability elastic-workload-plan indexed-job-resilience provisioning-admission multikueue-dispatch model-cache dag-bundle-plan asset-partitioning-plan airflow-stateful-orchestration airflow-sdk-contract multi-team-readiness event-driven-assets pod-resource-envelopes cohort-fair-sharing flavor-fungibility pending-workload-visibility tenancy-report identity-report performance-budget queue-simulation workload-aware-scheduling runtime-security control-plane-diagnostics memory-qos hpa-scale-zero suspended-job-resources constrained-impersonation release-admission ci-verify minikube-up kubernetes-plan test clean
 
 PYTHON ?= python3
 SERVING_FILES := \
@@ -102,6 +102,9 @@ semantic-telemetry-plan:
 
 llm-inference-readiness:
 	PYTHONPATH=src python3 -m kserve_model_platform llm-inference-readiness --output .local
+
+transformer-explainer-readiness:
+	PYTHONPATH=src python3 -m kserve_model_platform transformer-explainer-readiness --output .local
 
 deadline-alerts-plan:
 	PYTHONPATH=src python3 -m kserve_model_platform deadline-alerts-plan --output .local
@@ -219,6 +222,7 @@ ci-verify:
 	test -f .local/reports/inference_gateway_plan.json
 	test -f .local/reports/semantic_telemetry_plan.json
 	test -f .local/reports/llm_inference_readiness_plan.json
+	test -f .local/reports/transformer_explainer_readiness_plan.json
 	test -f .local/reports/deadline_alert_plan.json
 	test -f .local/reports/cost_observability_report.json
 	test -f .local/reports/elastic_workload_plan.json
@@ -264,6 +268,7 @@ ci-verify:
 	python3 -m json.tool .local/reports/inference_gateway_plan.json >/dev/null
 	python3 -m json.tool .local/reports/semantic_telemetry_plan.json >/dev/null
 	python3 -m json.tool .local/reports/llm_inference_readiness_plan.json >/dev/null
+	python3 -m json.tool .local/reports/transformer_explainer_readiness_plan.json >/dev/null
 	python3 -m json.tool .local/reports/deadline_alert_plan.json >/dev/null
 	python3 -m json.tool .local/reports/cost_observability_report.json >/dev/null
 	python3 -m json.tool .local/reports/elastic_workload_plan.json >/dev/null
@@ -359,6 +364,7 @@ minikube-up:
 	@echo "  kubectl apply -f kserve/inferenceservice-canary.yaml"
 	@echo "  kubectl apply -f kserve/local-model-cache.yaml"
 	@echo "  kubectl apply -f kserve/llm-inference-readiness.yaml"
+	@echo "  kubectl apply -f kserve/transformer-explainer-topology.yaml"
 	@echo "  kubectl apply -f kubernetes/serving-release-workloads.yaml"
 	@echo "  kubectl apply -f kubernetes/resource-optimization.yaml"
 	@echo "  kubectl apply -f kubernetes/network-security.yaml"
