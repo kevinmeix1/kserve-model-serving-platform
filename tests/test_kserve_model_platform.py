@@ -9,6 +9,7 @@ from kserve_model_platform import __version__
 from kserve_model_platform.accelerator_plan import build_accelerator_capacity_plan
 from kserve_model_platform.admin_access_diagnostics import build_admin_access_diagnostic_plan
 from kserve_model_platform.advanced_device_sharing import build_advanced_device_sharing_plan
+from kserve_model_platform.ai_workload_telemetry import build_ai_workload_telemetry_plan
 from kserve_model_platform.airflow_stateful_orchestration import build_airflow_stateful_orchestration_plan
 from kserve_model_platform.asset_partitioning import build_asset_partitioning_plan
 from kserve_model_platform.chaos import run_chaos_drill
@@ -212,6 +213,22 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue((Path(tmp) / "reports" / "trace_report.json").exists())
         for expected in ["kind: ConfigMap", "otlp", "k8sattributes", "memory_limiter", "prometheus", "batch", "attributes/semantic_redaction", "gen_ai.input.messages"]:
             self.assertIn(expected, collector)
+
+    def test_ai_workload_telemetry_plan_covers_weighted_serving_routes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan = build_ai_workload_telemetry_plan(root)
+            resource_fields = set(plan["required_resource_fields"])
+            otel_fields = set(plan["required_otel_fields"])
+            routes = {workload["route"] for workload in plan["workloads"]}
+
+            self.assertTrue(plan["passed"])
+            self.assertIn("credit-risk-weighted-route", routes)
+            self.assertIn("pod.resources.requests.cpu", resource_fields)
+            self.assertTrue(any(field.startswith("dra.") for field in resource_fields))
+            self.assertIn("gen_ai.request.model", otel_fields)
+            self.assertTrue(any(workload["kind"] == "KServe Transformer" for workload in plan["workloads"]))
+            self.assertTrue((root / "reports" / "ai_workload_telemetry_plan.json").exists())
 
     def test_chaos_drill_and_chaos_mesh_assets_exist(self) -> None:
         repo = Path(__file__).resolve().parents[1]

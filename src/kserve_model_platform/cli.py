@@ -7,6 +7,7 @@ from pathlib import Path
 from .accelerator_plan import build_accelerator_capacity_plan
 from .admin_access_diagnostics import build_admin_access_diagnostic_plan
 from .advanced_device_sharing import build_advanced_device_sharing_plan
+from .ai_workload_telemetry import build_ai_workload_telemetry_plan
 from .airflow_stateful_orchestration import build_airflow_stateful_orchestration_plan
 from .artifact_index import render_artifact_index
 from .asset_partitioning import build_asset_partitioning_plan
@@ -271,6 +272,7 @@ def demo(output: str | Path) -> dict:
     hpa_scale_to_zero = build_hpa_scale_to_zero_plan(root)
     suspended_job_resources = build_suspended_job_resource_plan(root)
     constrained_impersonation = build_constrained_impersonation_plan(root)
+    ai_workload_telemetry = build_ai_workload_telemetry_plan(root)
     supply_chain = build_supply_chain_evidence(
         root,
         project="KServe Model Serving Platform",
@@ -341,6 +343,7 @@ def demo(output: str | Path) -> dict:
         "hpa_scale_to_zero": hpa_scale_to_zero,
         "suspended_job_resources": suspended_job_resources,
         "constrained_impersonation": constrained_impersonation,
+        "ai_workload_telemetry": ai_workload_telemetry,
         "release_admission": release_admission,
         "artifact_index": str(artifact_index),
         "orchestration_scorecard": orchestration_scorecard,
