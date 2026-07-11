@@ -1,0 +1,101 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: LLMInferenceService
+metadata:
+  name: policy-assistant
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/part-of: kserve-serving-platform
+    mlops.openai.com/release-track: champion
+spec:
+  model:
+    name: policy-assistant-7b
+    storageUri: oci://ghcr.io/kevinmeix1/policy-assistant-7b:2026.07.10
+  router:
+    gatewayRef:
+      name: policy-assistant-inference-gateway
+    route:
+      timeout: 30s
+  engine:
+    name: vllm
+    args:
+      - --enable-prefix-caching
+      - --max-loras=12
+      - --served-model-name=policy-assistant-7b
+  replicas:
+    prefill: 2
+    decode: 3
+---
+apiVersion: inference.networking.k8s.io/v1
+kind: InferencePool
+metadata:
+  name: policy-assistant-llm-pool
+  namespace: mlops-serving
+spec:
+  selector:
+    app.kubernetes.io/name: policy-assistant
+  targetPortNumber: 8000
+  endpointPickerRef:
+    name: policy-assistant-endpoint-picker
+    port:
+      number: 9002
+  extensionRef:
+    failureMode: FailOpen
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: policy-assistant-decode
+  namespace: mlops-serving
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: policy-assistant-decode
+  minReplicas: 3
+  maxReplicas: 12
+  metrics:
+    - type: Pods
+      pods:
+        metric:
+          name: vllm_time_per_output_token_ms
+        target:
+          type: AverageValue
+          averageValue: "65"
+    - type: Pods
+      pods:
+        metric:
+          name: vllm_kv_cache_utilization
+        target:
+          type: AverageValue
+          averageValue: "750m"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: policy-assistant-llm-readiness
+  namespace: mlops-serving
+spec:
+  groups:
+    - name: policy-assistant-llm-readiness
+      rules:
+        - alert: PolicyAssistantTTFTBudgetExceeded
+          expr: histogram_quantile(0.95, sum(rate(vllm_time_to_first_token_seconds_bucket{model="policy-assistant-7b"}[5m])) by (le)) > 0.9
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: LLM time-to-first-token p95 breached rollout budget.
+        - alert: PolicyAssistantPrefixCacheLow
+          expr: avg(vllm_prefix_cache_hit_rate{model="policy-assistant-7b"}) < 0.65
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Prefix cache hit rate is too low for the current routing policy.
+        - alert: PolicyAssistantLoRAAdapterBudgetHigh
+          expr: max(vllm_active_lora_adapters{model="policy-assistant-7b"}) > 12
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Active LoRA adapters exceed the declared per-replica budget.

@@ -2,21 +2,46 @@
 
 [![KServe Serving CI](https://github.com/kevinmeix1/kserve-model-serving-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/kevinmeix1/kserve-model-serving-platform/actions/workflows/ci.yml)
 
-A production-style model serving project focused on Kubernetes inference operations: champion/challenger rollout, shadow scoring, request contracts, idempotent predictions, canary gates, rollback, and observability.
+A production-style model serving project focused on Kubernetes inference operations: a runnable KServe V2 data plane, champion/challenger rollout, shadow scoring, request contracts, durable idempotency, canary gates, rollback, and observability.
 
-The default demo is local-first and fast to run. The repo also includes KServe, Prometheus, and Minikube scaffolding for a production-shaped deployment path.
+The deterministic demo is local-first and fast to run. A containerized FastAPI runtime exposes the same model state through the Open Inference Protocol, while the KServe, Prometheus, and Minikube assets show the cluster deployment path.
 
 ![KServe serving dashboard](docs/screenshots/dashboard.png)
 
+[Watch the narrated operations review](docs/demo/kserve-judge-demo.mp4) or follow the [five-minute run-review notes](docs/judge-demo.md). A verified mobile capture is available at [docs/screenshots/dashboard-mobile.png](docs/screenshots/dashboard-mobile.png).
+
+For a study-oriented walkthrough with the full architecture diagram,
+step-by-step screenshot guide, code reading order, and interview explanations,
+start with [the project study guide](docs/study-guide.md).
+
+The UI is governed by an offline, tested operator-console system. Its rationale,
+open-source references, accessibility contract, and review checklist are in the
+[design-system notes](docs/design-system.md).
+
+![Serving evidence](docs/screenshots/dashboard-evidence-deck.png)
+
+![Traffic review](docs/screenshots/dashboard-demo-theater.png)
+
 ## What This Demonstrates
 
-- KServe-style InferenceService deployment metadata
+- Runnable KServe Open Inference Protocol V2 HTTP runtime
+- Batched and version-pinned inference with strict tensor contracts
+- Atomic last-known-good model snapshots during alias promotion
+- Durable request idempotency across process restarts
+- Durable single-flight claims for concurrent same-ID retries
+- Bounded concurrency, queue budgets, and inference deadlines
+- Capacity-safe timeout handling with eventual idempotent replay
+- KServe InferenceService deployment metadata and custom runtime manifest
 - Champion and challenger model aliases
 - Canary traffic routing
 - Shadow scoring for champion-routed requests
 - Request validation with a documented prediction contract
 - Idempotent prediction handling by `request_id`
 - Structured prediction logs
+- Interactive inference lab backed by the live Open Inference V2 endpoint
+- Payload-free console status API for snapshot, ledger, and worker evidence
+- Generative inference readiness plan for KServe `LLMInferenceService`, vLLM, OCI ModelCar artifacts, endpoint picking, and TTFT/TPOT gates
+- Predictor/Transformer/Explainer topology readiness with transformer predictor-health gates, async explainer scaling, bounded sync latency, and fallback routes
 - Latency, error rate, throughput, route mix, and score distribution monitoring
 - Canary promotion gates
 - Model rollback to previous champion
@@ -27,7 +52,7 @@ The default demo is local-first and fast to run. The repo also includes KServe, 
 ```mermaid
 flowchart LR
     A["Prediction requests"] --> B["Request contract validation"]
-    B -->|valid| C["KServe router"]
+    B -->|valid| C["KServe V2 custom runtime"]
     B -->|invalid| D["Rejected request log"]
     C --> E["Champion model"]
     C --> F["Challenger model"]
@@ -55,18 +80,71 @@ Open the generated dashboard:
 
 ```bash
 open .local/reports/kserve_serving_dashboard.html
+open .local/reports/judge_demo_cockpit.html
+open .local/reports/operator_drill_lab.html
+open .local/reports/reliability_signal_mesh.html
+open .local/reports/narrated_demo_studio.html
 ```
+
+The Operations Review connects the
+serving dashboard, narrated video, operational readiness packet, and generated
+evidence artifacts behind interactive release, observability, governance, and
+operator-handoff filters.
+
+![Operations review](docs/screenshots/study-02-judge-cockpit.png)
+
+The Operator Drill Lab rehearses detection, triage, containment, recovery, and
+blameless postmortem follow-up from the generated serving evidence.
+
+![Operator drill lab](docs/screenshots/dashboard-operator-drill.png)
+
+The Reliability Signal Mesh connects Airflow asset events, OpenTelemetry
+resource attributes, Kueue admission pressure, SLO burn, and fail-closed release
+decisions into one operator-facing evidence graph.
+
+![Reliability signal mesh](docs/screenshots/dashboard-reliability-signal-mesh.png)
+
+The Narrated Run Review turns the evidence bundle into an operator-facing chapter
+timeline with natural voice backends, Remotion props, subtitle timing, and
+evidence-linked visuals.
+
+![Narrated run review](docs/screenshots/dashboard-narrated-demo-studio.png)
+
+To run the actual HTTP serving boundary:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e '.[serving,test]'
+make demo
+make api-run
+```
+
+Open `http://127.0.0.1:8080/dashboard` while `make api-run` is active. The Live Inference Lab submits a real V2 request, shows champion/challenger routing, model version, risk score, browser-observed latency, snapshot generation, and idempotency evidence. The runtime status strip reads the bounded `/api/console/status` endpoint; it exposes operational counts and identifiers but no feature payloads or prediction bodies.
+
+In another terminal, run `make api-smoke`. The container path is `make compose-up`; it serves the same interactive dashboard at `http://127.0.0.1:8080/dashboard` and the API contract at `/docs`.
 
 ## Commands
 
 ```bash
 make deploy      # create registry aliases and local KServe deployment state
+make runtime-init # initialize only the model, traffic, logs, and dashboard assets
 make simulate    # generate and score synthetic prediction traffic
 make monitor     # build observability report and canary decision
 make promote     # promote challenger when canary gates pass
 make rollback    # restore previous champion
 make predict     # run one online request
 make health      # inspect serving readiness
+make api-run     # start the KServe V2-compatible HTTP runtime
+make api-smoke   # verify health, metadata, batch inference, replay, and metrics
+make llm-inference-readiness # generate KServe LLM/vLLM readiness evidence
+make transformer-explainer-readiness # generate Predictor/Transformer/Explainer topology evidence
+make test-api    # run serving data-plane contract tests
+make lint-api    # lint the executable serving boundary
+make verify-serving-lock # reject missing, extra, or version-drifted dependencies
+make package-smoke # build with pinned tooling and verify an isolated wheel import
+make kserve-schema-contract # validate the manifest against KServe 0.18
+make compose-up  # build and start the reproducible container path
+make compose-smoke # build, test, and tear down the container path
 make minikube-up # print local cluster bootstrap commands
 make test        # run unit and integration tests
 ```
@@ -74,6 +152,8 @@ make test        # run unit and integration tests
 ## Production-Grade Refinements
 
 See [production-grade refinements](docs/production-grade-refinements.md) for the KServe hardening, traffic policy, shadow scoring, canary gates, and rollback improvements.
+
+For the executable Open Inference V2 server, atomic model snapshots, persistent idempotency, cancellation-safe deadlines, probe semantics, and container smoke gate, see [KServe V2 serving runtime](docs/kserve-v2-serving-runtime.md).
 
 For the latest progressive rollout orchestration pass, see [advanced orchestration assessment](docs/advanced-orchestration-assessment.md).
 
@@ -88,6 +168,10 @@ For OpenCost serving unit economics, traffic-class budgets, GPU explainer spend,
 For the policy-as-code audit layer, see [security and governance](docs/security-governance.md).
 
 For OpenTelemetry-style runtime traces, see [observability and tracing](docs/observability-tracing.md).
+
+For serving-specific pod resource, DRA, Gateway route, and model identity telemetry contracts, see [AI workload telemetry readiness](docs/ai-workload-telemetry.md).
+
+For the operator-facing packet that combines release admission, SLO burn, rollout, provenance, telemetry, and performance evidence, see [operational readiness review](docs/operational-readiness-review.md).
 
 For controlled failure injection and recovery objectives, see [resilience and chaos drills](docs/resilience-chaos.md).
 
@@ -143,11 +227,13 @@ For Airflow 3 GitDagBundle configuration, DAG versioning, scheduler-managed back
 
 For Airflow 3.2 asset partitioning, partition-aware KServe canary telemetry, route decisions, and rollback smoke backfills, see [Airflow asset partitioning](docs/airflow-asset-partitioning.md).
 
+For Airflow 3.3 task/asset state stores, bounded rollout rollup and route fanout, runtime partitions, exception-aware retries, and a real SDK parse gate, see [Airflow stateful orchestration](docs/airflow-stateful-orchestration.md).
+
 For Airflow multi-team preview readiness with serving-owned DAG Bundles, team-scoped pools/secrets, team triggerers, and asset-event filtering, see [Airflow multi-team readiness](docs/airflow-multi-team-readiness.md).
 
 For Airflow 3 AssetWatchers, `BaseEventTrigger` contracts, shared-stream polling, `AssetAlias`, and conditional serving asset expressions, see [event-driven assets](docs/event-driven-assets.md).
 
-For model-aware routing with Gateway API Inference Extension, stable `InferencePool`, Endpoint Picker fallback, and priority objectives, see [Gateway API Inference Extension](docs/inference-gateway.md).
+For model-aware routing with Gateway API Inference Extension, stable `InferencePool`, Endpoint Picker fallback, priority objectives, endpoint-picker HPA/PDBs, fail-open drills, and deterministic routing simulation, see [Gateway API Inference Extension](docs/inference-gateway.md). The dashboard includes an **Inference Gateway** panel after `make demo`.
 
 For Kueue ResourceFlavor fallback, `TryNextFlavor` behavior, and serving spot/on-demand/GPU trade-offs, see [Kueue flavor fungibility](docs/kueue-flavor-fungibility.md).
 
@@ -167,7 +253,11 @@ For Kubernetes v1.36 suspended Job resource mutation, `MutablePodResourcesForSus
 
 For Kubernetes v1.36 constrained impersonation, `ConstrainedImpersonation`, and least-privilege KServe debugging with separate identity and action authorization, see [constrained impersonation](docs/constrained-impersonation.md).
 
-For portable OpenTelemetry attributes, GenAI token/cost fields, Kubernetes correlation, and telemetry redaction guardrails, see [semantic telemetry](docs/semantic-telemetry.md).
+For portable OpenTelemetry attributes, GenAI token/cost fields, Kubernetes correlation, telemetry redaction guardrails, and Argo/Prometheus rollout gates for token budget, queue latency, cache hit ratio, and groundedness proxy, see [semantic telemetry](docs/semantic-telemetry.md).
+
+For KServe `LLMInferenceService`, vLLM, OCI ModelCar artifact controls, Gateway API endpoint picking, TTFT/TPOT budgets, LoRA adapter capacity, and prefill/decode scaling, see [LLM inference readiness](docs/llm-inference-readiness.md). The dashboard includes an **LLM Inference Readiness** panel after `make demo`.
+
+For KServe Predictor, Transformer, and async Explainer topology, separate-by-default scaling, collocation trade-offs, predictor-health readiness gates, and fallback routing, see [Transformer and Explainer readiness](docs/transformer-explainer-readiness.md). The dashboard includes a **Transformer And Explainer Readiness** panel after `make demo`.
 
 For serving tenant quotas, Kueue cohorts, Airflow pools, rollback reservations, chargeback labels, and noisy-neighbor controls, see [multi-tenant fairness](docs/multi-tenant-fairness.md).
 
@@ -198,13 +288,17 @@ The demo keeps promotion as an explicit command. This models a real approval wor
 | `.local/deployments/kserve_state.json` | KServe InferenceService status |
 | `.local/logs/predictions.jsonl` | structured inference logs |
 | `.local/reports/serving_observability.json` | Prometheus, OpenTelemetry, Evidently, or warehouse monitor |
+| `src/kserve_model_platform/api.py` | KServe V2-compatible custom prediction data plane |
+| `.local/api/idempotency.sqlite3` | local durable ledger; Redis or Postgres in a multi-pod deployment |
+| `compose.yaml` | reproducible local predictor and Prometheus runtime |
+| `kserve/custom-runtime-inferenceservice.yaml` | custom predictor with probes and a restricted security context |
 | `kserve/inferenceservice-canary.yaml` | Kubernetes canary serving manifest |
 | `kserve/rollback-patch.yaml` | emergency rollback manifest |
 | `contracts/prediction_request_contract.yml` | serving API data contract |
 
 ## Production Notes
 
-In a real deployment, the router would be implemented with KServe traffic splitting, a gateway, or a thin service layer in front of multiple InferenceServices. Prediction logs would include trace IDs, model version, request hash, route, latency, validation errors, and feature payload references.
+The included router is executable and suitable for local protocol and failure-semantics testing. A multi-pod deployment would move idempotency to a shared store, resolve models from an external MLflow registry and object store, and normally put tenant authentication, rate limits, and traffic policy at the gateway. Prediction logs would include trace IDs, model version, request hash, route, latency, validation errors, and feature payload references without raw sensitive features. A `504` is a response deadline, not proof that Python stopped an already-running worker thread; capacity remains reserved, a durable claim blocks duplicate scoring, and the same request ID retrieves the eventual result.
 
 The key production idea is that model serving is not only a REST endpoint. It is a release system with traffic policy, observability, rollback, and strict request contracts.
 

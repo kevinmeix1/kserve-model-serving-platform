@@ -1,7 +1,23 @@
-.PHONY: demo deploy predict simulate monitor promote rollback health plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan device-plan resource-health-status advanced-device-sharing admin-access-diagnostics inplace-resize-plan topology-plan kuberay-plan inference-gateway-plan semantic-telemetry-plan deadline-alerts-plan cost-observability elastic-workload-plan indexed-job-resilience provisioning-admission multikueue-dispatch model-cache dag-bundle-plan asset-partitioning-plan multi-team-readiness event-driven-assets pod-resource-envelopes cohort-fair-sharing flavor-fungibility pending-workload-visibility tenancy-report identity-report performance-budget queue-simulation workload-aware-scheduling runtime-security control-plane-diagnostics memory-qos hpa-scale-zero suspended-job-resources constrained-impersonation release-admission ci-verify minikube-up kubernetes-plan test clean
+.PHONY: demo runtime-init deploy predict simulate monitor promote rollback health api-run api-smoke demo-voice demo-video test-api lint-api verify-serving-lock package package-smoke kserve-schema-contract compose-config compose-up compose-down compose-smoke plan-rollout policy-audit trace-report chaos-drill optimize-resources network-security gitops-plan dr-plan governance-bundle slo-report cloud-plan supply-chain orchestration-scorecard accelerator-plan device-plan resource-health-status advanced-device-sharing admin-access-diagnostics inplace-resize-plan topology-plan kuberay-plan inference-gateway-plan semantic-telemetry-plan llm-inference-readiness transformer-explainer-readiness deadline-alerts-plan cost-observability elastic-workload-plan indexed-job-resilience provisioning-admission multikueue-dispatch model-cache dag-bundle-plan asset-partitioning-plan airflow-stateful-orchestration airflow-sdk-contract multi-team-readiness event-driven-assets pod-resource-envelopes cohort-fair-sharing flavor-fungibility pending-workload-visibility tenancy-report identity-report performance-budget queue-simulation workload-aware-scheduling runtime-security control-plane-diagnostics memory-qos hpa-scale-zero suspended-job-resources constrained-impersonation release-admission ci-verify minikube-up kubernetes-plan test clean
+
+PYTHON ?= python3
+SERVING_FILES := \
+	src/kserve_model_platform/api.py \
+	src/kserve_model_platform/runtime_contract.py \
+	src/kserve_model_platform/runtime_state.py \
+	src/kserve_model_platform/v2_protocol.py \
+	tests/test_kserve_model_platform.py \
+	tests/test_serving_api.py \
+	tools/smoke_wheel.py \
+	tools/smoke_serving_api.py \
+	tools/verify_locked_environment.py \
+	tools/validate_kserve_manifest.py
 
 demo:
 	PYTHONPATH=src python3 -m kserve_model_platform demo --output .local
+
+runtime-init:
+	PYTHONPATH=src python3 -m kserve_model_platform runtime-init --output .local
 
 deploy:
 	PYTHONPATH=src python3 -m kserve_model_platform deploy --output .local
@@ -84,6 +100,12 @@ inference-gateway-plan:
 semantic-telemetry-plan:
 	PYTHONPATH=src python3 -m kserve_model_platform semantic-telemetry-plan --output .local
 
+llm-inference-readiness:
+	PYTHONPATH=src python3 -m kserve_model_platform llm-inference-readiness --output .local
+
+transformer-explainer-readiness:
+	PYTHONPATH=src python3 -m kserve_model_platform transformer-explainer-readiness --output .local
+
 deadline-alerts-plan:
 	PYTHONPATH=src python3 -m kserve_model_platform deadline-alerts-plan --output .local
 
@@ -110,6 +132,12 @@ dag-bundle-plan:
 
 asset-partitioning-plan:
 	PYTHONPATH=src python3 -m kserve_model_platform asset-partitioning-plan --output .local
+
+airflow-stateful-orchestration:
+	PYTHONPATH=src python3 -m kserve_model_platform airflow-stateful-orchestration --output .local
+
+airflow-sdk-contract:
+	python3 tools/validate_airflow33_dag.py airflow/dags/airflow33_stateful_serving_dag.py
 
 multi-team-readiness:
 	PYTHONPATH=src python3 -m kserve_model_platform multi-team-readiness --output .local
@@ -166,7 +194,18 @@ release-admission:
 	PYTHONPATH=src python3 -m kserve_model_platform release-admission --output .local
 
 ci-verify:
-	PYTHONPATH=src python3 -m compileall -q src tests
+	PYTHONPATH=src python3 -m compileall -q src tests tools
+	test -f Dockerfile
+	test -f compose.yaml
+	test -f requirements-serving.lock
+	test -f src/kserve_model_platform/api.py
+	test -f src/kserve_model_platform/runtime_state.py
+	test -f src/kserve_model_platform/v2_protocol.py
+	test -f kserve/custom-runtime-inferenceservice.yaml
+	test -f docs/kserve-v2-serving-runtime.md
+	test -f docs/demo/kserve-judge-demo.mp4
+	test $$(wc -c < docs/demo/kserve-judge-demo.mp4) -gt 1000000
+	test -f docs/screenshots/dashboard.png
 	test -f .local/reports/kserve_serving_dashboard.html
 	test -f .local/reports/index.html
 	test -f .local/reports/governance_evidence_bundle.json
@@ -184,6 +223,8 @@ ci-verify:
 	test -f .local/reports/kuberay_capacity_plan.json
 	test -f .local/reports/inference_gateway_plan.json
 	test -f .local/reports/semantic_telemetry_plan.json
+	test -f .local/reports/llm_inference_readiness_plan.json
+	test -f .local/reports/transformer_explainer_readiness_plan.json
 	test -f .local/reports/deadline_alert_plan.json
 	test -f .local/reports/cost_observability_report.json
 	test -f .local/reports/elastic_workload_plan.json
@@ -193,6 +234,7 @@ ci-verify:
 	test -f .local/reports/model_cache_plan.json
 	test -f .local/reports/dag_bundle_versioning_plan.json
 	test -f .local/reports/asset_partitioning_plan.json
+	test -f .local/reports/airflow_stateful_orchestration_plan.json
 	test -f .local/reports/multi_team_readiness_plan.json
 	test -f .local/reports/event_driven_assets_plan.json
 	test -f .local/reports/pod_resource_envelope_plan.json
@@ -210,7 +252,19 @@ ci-verify:
 	test -f .local/reports/hpa_scale_to_zero_plan.json
 	test -f .local/reports/suspended_job_resources_plan.json
 	test -f .local/reports/constrained_impersonation_plan.json
+	test -f .local/reports/ai_workload_telemetry_plan.json
 	test -f .local/reports/release_admission_decision.json
+	test -f .local/reports/operational_readiness_review.json
+	test -f .local/reports/judge_demo_cockpit.html
+	test -f .local/reports/judge_demo_cockpit_manifest.json
+	test -f .local/reports/operator_drill_lab.html
+	test -f .local/reports/operator_drill_report.json
+	test -f .local/reports/reliability_signal_mesh.html
+	test -f .local/reports/reliability_signal_mesh.json
+	test -f .local/reports/narrated_demo_studio.html
+	test -f .local/reports/narrated_demo_studio.json
+	test -f .local/reports/remotion_demo_props.json
+	test -f .local/reports/narrated_demo_subtitle_plan.srt
 	test -f .local/supply-chain/subject.checksums.txt
 	python3 -m json.tool .local/reports/governance_evidence_bundle.json >/dev/null
 	python3 -m json.tool .local/reports/slo_error_budget.json >/dev/null
@@ -227,6 +281,8 @@ ci-verify:
 	python3 -m json.tool .local/reports/kuberay_capacity_plan.json >/dev/null
 	python3 -m json.tool .local/reports/inference_gateway_plan.json >/dev/null
 	python3 -m json.tool .local/reports/semantic_telemetry_plan.json >/dev/null
+	python3 -m json.tool .local/reports/llm_inference_readiness_plan.json >/dev/null
+	python3 -m json.tool .local/reports/transformer_explainer_readiness_plan.json >/dev/null
 	python3 -m json.tool .local/reports/deadline_alert_plan.json >/dev/null
 	python3 -m json.tool .local/reports/cost_observability_report.json >/dev/null
 	python3 -m json.tool .local/reports/elastic_workload_plan.json >/dev/null
@@ -236,6 +292,7 @@ ci-verify:
 	python3 -m json.tool .local/reports/model_cache_plan.json >/dev/null
 	python3 -m json.tool .local/reports/dag_bundle_versioning_plan.json >/dev/null
 	python3 -m json.tool .local/reports/asset_partitioning_plan.json >/dev/null
+	python3 -m json.tool .local/reports/airflow_stateful_orchestration_plan.json >/dev/null
 	python3 -m json.tool .local/reports/multi_team_readiness_plan.json >/dev/null
 	python3 -m json.tool .local/reports/event_driven_assets_plan.json >/dev/null
 	python3 -m json.tool .local/reports/pod_resource_envelope_plan.json >/dev/null
@@ -253,7 +310,14 @@ ci-verify:
 	python3 -m json.tool .local/reports/hpa_scale_to_zero_plan.json >/dev/null
 	python3 -m json.tool .local/reports/suspended_job_resources_plan.json >/dev/null
 	python3 -m json.tool .local/reports/constrained_impersonation_plan.json >/dev/null
+	python3 -m json.tool .local/reports/ai_workload_telemetry_plan.json >/dev/null
 	python3 -m json.tool .local/reports/release_admission_decision.json >/dev/null
+	python3 -m json.tool .local/reports/operational_readiness_review.json >/dev/null
+	python3 -m json.tool .local/reports/judge_demo_cockpit_manifest.json >/dev/null
+	python3 -m json.tool .local/reports/operator_drill_report.json >/dev/null
+	python3 -m json.tool .local/reports/reliability_signal_mesh.json >/dev/null
+	python3 -m json.tool .local/reports/narrated_demo_studio.json >/dev/null
+	python3 -m json.tool .local/reports/remotion_demo_props.json >/dev/null
 
 promote:
 	PYTHONPATH=src python3 -m kserve_model_platform promote --output .local
@@ -264,13 +328,64 @@ rollback:
 health:
 	PYTHONPATH=src python3 -m kserve_model_platform health --output .local
 
+api-run:
+	LOG_LEVEL=INFO SERVING_STATE_ROOT=.local PYTHONPATH=src $(PYTHON) -m uvicorn kserve_model_platform.api:app --host 0.0.0.0 --port 8080 --workers 1 --no-access-log
+
+api-smoke:
+	$(PYTHON) tools/smoke_serving_api.py --base-url "$${SERVING_BASE_URL:-http://127.0.0.1:8080}"
+
+demo-voice:
+	$(PYTHON) tools/generate_demo_voice.py
+
+demo-video:
+	bash tools/build_demo_video.sh
+
+test-api:
+	PYTHONPATH=src $(PYTHON) -m unittest tests.test_serving_api -v
+
+lint-api:
+	$(PYTHON) -m ruff check --ignore E501,I001 $(SERVING_FILES)
+
+verify-serving-lock:
+	$(PYTHON) tools/verify_locked_environment.py requirements-serving.lock
+
+package:
+	rm -rf build dist
+	$(PYTHON) -m build --no-isolation --wheel
+
+package-smoke: package
+	$(PYTHON) tools/smoke_wheel.py
+
+kserve-schema-contract:
+	$(PYTHON) tools/validate_kserve_manifest.py
+
+compose-config:
+	docker compose config --quiet
+
+compose-up:
+	docker compose up --build --wait
+
+compose-down:
+	docker compose down --volumes --remove-orphans
+
+compose-smoke:
+	@set -eu; \
+		mkdir -p .local/reports; \
+		cleanup() { docker compose logs --no-color > .local/reports/compose-smoke.log 2>&1 || true; docker compose down --volumes --remove-orphans >/dev/null 2>&1 || true; }; \
+		trap cleanup EXIT; \
+		docker compose up --build --wait; \
+		$(MAKE) api-smoke
+
 minikube-up:
 	@echo "Start Minikube and apply the serving stack:"
 	@echo "  minikube start --cpus=4 --memory=8192"
 	@echo "  kubectl create namespace mlops-serving --dry-run=client -o yaml | kubectl apply -f -"
 	@echo "  kubectl apply -f kserve/production-hardening.yaml"
+	@echo "  kubectl apply -f kserve/custom-runtime-inferenceservice.yaml"
 	@echo "  kubectl apply -f kserve/inferenceservice-canary.yaml"
 	@echo "  kubectl apply -f kserve/local-model-cache.yaml"
+	@echo "  kubectl apply -f kserve/llm-inference-readiness.yaml"
+	@echo "  kubectl apply -f kserve/transformer-explainer-topology.yaml"
 	@echo "  kubectl apply -f kubernetes/serving-release-workloads.yaml"
 	@echo "  kubectl apply -f kubernetes/resource-optimization.yaml"
 	@echo "  kubectl apply -f kubernetes/network-security.yaml"

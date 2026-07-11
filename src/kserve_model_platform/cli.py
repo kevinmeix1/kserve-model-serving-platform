@@ -7,6 +7,8 @@ from pathlib import Path
 from .accelerator_plan import build_accelerator_capacity_plan
 from .admin_access_diagnostics import build_admin_access_diagnostic_plan
 from .advanced_device_sharing import build_advanced_device_sharing_plan
+from .ai_workload_telemetry import build_ai_workload_telemetry_plan
+from .airflow_stateful_orchestration import build_airflow_stateful_orchestration_plan
 from .artifact_index import render_artifact_index
 from .asset_partitioning import build_asset_partitioning_plan
 from .chaos import run_chaos_drill
@@ -17,6 +19,7 @@ from .constrained_impersonation import build_constrained_impersonation_plan
 from .cost_observability import build_cost_observability_report
 from .dag_bundle_versioning import build_dag_bundle_versioning_plan
 from .dashboard import render_dashboard
+from .demo_cockpit import build_judge_demo_cockpit, build_operator_drill_lab
 from .deadline_alerts import build_deadline_alert_plan
 from .disaster_recovery import build_disaster_recovery_plan
 from .device_allocation import build_device_allocation_plan
@@ -32,14 +35,17 @@ from .inplace_resize import build_inplace_resize_plan
 from .inference_gateway import build_inference_gateway_plan
 from .io import read_json, write_csv, write_json
 from .kuberay_capacity import build_kuberay_capacity_plan
+from .llm_inference_readiness import build_llm_inference_readiness_plan
 from .memory_qos import build_memory_qos_plan
 from .model_cache import build_model_cache_plan
 from .models import generate_requests
 from .monitoring import build_report, evaluate_canary
 from .multi_team_readiness import build_multi_team_readiness_plan
 from .multikueue_dispatch import build_multikueue_dispatch_plan
+from .narrated_demo_studio import build_narrated_demo_studio
 from .network_security import build_network_security_report
 from .orchestration_scorecard import build_orchestration_scorecard
+from .operational_readiness import build_operational_readiness_review
 from .pending_workload_visibility import build_pending_workload_visibility_plan
 from .policy_audit import audit_platform_policy
 from .performance_budget import build_performance_budget_report
@@ -47,6 +53,7 @@ from .pod_resource_envelopes import build_pod_resource_envelope_plan
 from .provisioning_admission import build_provisioning_admission_plan
 from .queue_simulator import build_queue_simulation
 from .release_admission import build_release_admission_decision
+from .reliability_signal_mesh import build_reliability_signal_mesh
 from .registry import aliases as registry_aliases
 from .registry import promote_challenger, rollback as rollback_registry, seed_registry
 from .resource_health_status import build_resource_health_status_plan
@@ -62,6 +69,7 @@ from .suspended_job_resources import build_suspended_job_resource_plan
 from .tenancy import build_tenancy_report
 from .topology_placement import build_topology_placement_plan
 from .traceability import build_trace_report
+from .transformer_explainer_readiness import build_transformer_explainer_readiness_plan
 from .workload_aware_scheduling import build_workload_aware_scheduling_plan
 
 
@@ -118,6 +126,18 @@ def monitor(output: str | Path) -> dict:
     write_json(root / "reports" / "canary_decision.json", decision)
     deployment = read_json(root / "deployments" / "kserve_state.json")
     rollout_plan = build_rollout_plan(root)
+    inference_gateway_path = root / "reports" / "inference_gateway_plan.json"
+    inference_gateway_plan = read_json(inference_gateway_path) if inference_gateway_path.exists() else None
+    semantic_telemetry_path = root / "reports" / "semantic_telemetry_plan.json"
+    semantic_telemetry_plan = read_json(semantic_telemetry_path) if semantic_telemetry_path.exists() else build_semantic_telemetry_plan(root)
+    llm_readiness_path = root / "reports" / "llm_inference_readiness_plan.json"
+    llm_readiness = read_json(llm_readiness_path) if llm_readiness_path.exists() else None
+    transformer_explainer_path = root / "reports" / "transformer_explainer_readiness_plan.json"
+    transformer_explainer = (
+        read_json(transformer_explainer_path)
+        if transformer_explainer_path.exists()
+        else build_transformer_explainer_readiness_plan(root)
+    )
     dashboard = render_dashboard(
         root / "reports" / "kserve_serving_dashboard.html",
         deployment=deployment,
@@ -125,8 +145,31 @@ def monitor(output: str | Path) -> dict:
         decision=decision,
         aliases=registry_aliases(root),
         rollout_plan=rollout_plan,
+        inference_gateway_plan=inference_gateway_plan,
+        semantic_telemetry_plan=semantic_telemetry_plan,
+        llm_readiness_plan=llm_readiness,
+        transformer_explainer_plan=transformer_explainer,
     )
-    return {"report": report, "decision": decision, "rollout_plan": rollout_plan, "dashboard": str(dashboard)}
+    return {
+        "report": report,
+        "decision": decision,
+        "rollout_plan": rollout_plan,
+        "transformer_explainer": transformer_explainer,
+        "dashboard": str(dashboard),
+    }
+
+
+def runtime_init(output: str | Path, *, requests: int = 120) -> dict:
+    root = root_path(output)
+    deployment = deploy(root, challenger_percent=10)
+    simulation = simulate(root, requests=requests)
+    monitoring = monitor(root)
+    return {
+        "deployment": deployment,
+        "simulation": simulation,
+        "canary": monitoring["decision"],
+        "dashboard": monitoring["dashboard"],
+    }
 
 
 def governance(output: str | Path) -> dict:
@@ -192,6 +235,20 @@ def demo(output: str | Path) -> dict:
     kuberay_capacity = build_kuberay_capacity_plan(root)
     inference_gateway = build_inference_gateway_plan(root)
     semantic_telemetry = build_semantic_telemetry_plan(root)
+    llm_readiness = build_llm_inference_readiness_plan(root)
+    transformer_explainer = build_transformer_explainer_readiness_plan(root)
+    render_dashboard(
+        root / "reports" / "kserve_serving_dashboard.html",
+        deployment=deployment,
+        report=monitoring["report"],
+        decision=monitoring["decision"],
+        aliases=registry_aliases(root),
+        rollout_plan=monitoring["rollout_plan"],
+        inference_gateway_plan=inference_gateway,
+        semantic_telemetry_plan=semantic_telemetry,
+        llm_readiness_plan=llm_readiness,
+        transformer_explainer_plan=transformer_explainer,
+    )
     deadline_alerts = build_deadline_alert_plan(root)
     cost_observability = build_cost_observability_report(root)
     elastic_workload = build_elastic_workload_plan(root)
@@ -201,6 +258,7 @@ def demo(output: str | Path) -> dict:
     model_cache = build_model_cache_plan(root)
     dag_bundle_versioning = build_dag_bundle_versioning_plan(root)
     asset_partitioning = build_asset_partitioning_plan(root)
+    airflow_stateful_orchestration = build_airflow_stateful_orchestration_plan(root)
     multi_team_readiness = build_multi_team_readiness_plan(root)
     event_driven_assets = build_event_driven_assets_plan(root)
     pod_resource_envelopes = build_pod_resource_envelope_plan(root)
@@ -218,6 +276,7 @@ def demo(output: str | Path) -> dict:
     hpa_scale_to_zero = build_hpa_scale_to_zero_plan(root)
     suspended_job_resources = build_suspended_job_resource_plan(root)
     constrained_impersonation = build_constrained_impersonation_plan(root)
+    ai_workload_telemetry = build_ai_workload_telemetry_plan(root)
     supply_chain = build_supply_chain_evidence(
         root,
         project="KServe Model Serving Platform",
@@ -226,10 +285,37 @@ def demo(output: str | Path) -> dict:
         namespace="mlops-serving",
     )
     release_admission = build_release_admission_decision(root)
+    operational_readiness = build_operational_readiness_review(root)
+    judge_demo_cockpit = build_judge_demo_cockpit(
+        root,
+        project_name="KServe Model Serving Platform",
+        primary_dashboard="kserve_serving_dashboard.html",
+        demo_video="../../docs/demo/kserve-judge-demo.mp4",
+    )
+    operator_drill = build_operator_drill_lab(
+        root,
+        project_name="KServe Model Serving Platform",
+        scenario="Challenger predictor latency regresses while the gateway must preserve champion traffic",
+        primary_dashboard="kserve_serving_dashboard.html",
+        runbook="../../docs/runbook.md",
+    )
+    reliability_signal_mesh = build_reliability_signal_mesh(
+        root,
+        project_name="KServe Model Serving Platform",
+        domain="Real-time inference and canary rollout",
+        primary_dashboard="kserve_serving_dashboard.html",
+    )
+    narrated_demo_studio = build_narrated_demo_studio(
+        root,
+        project_name="KServe Model Serving Platform",
+        domain="Real-time inference and canary rollout",
+        primary_dashboard="kserve_serving_dashboard.html",
+        demo_video="../../docs/demo/kserve-judge-demo.mp4",
+    )
     artifact_index = render_artifact_index(
         root,
         title="KServe Model Serving Platform",
-        description="Reviewer landing page for generated serving dashboard, rollout evidence, SLOs, migration, and reliability artifacts.",
+        description="Generated registry for serving contracts, rollout decisions, SLO budgets, capacity plans, and recovery evidence.",
         dashboard="kserve_serving_dashboard.html",
     )
     orchestration_scorecard = build_orchestration_scorecard(root, project="KServe Model Serving Platform")
@@ -259,6 +345,8 @@ def demo(output: str | Path) -> dict:
         "kuberay_capacity": kuberay_capacity,
         "inference_gateway": inference_gateway,
         "semantic_telemetry": semantic_telemetry,
+        "llm_readiness": llm_readiness,
+        "transformer_explainer": transformer_explainer,
         "deadline_alerts": deadline_alerts,
         "cost_observability": cost_observability,
         "elastic_workload": elastic_workload,
@@ -268,6 +356,7 @@ def demo(output: str | Path) -> dict:
         "model_cache": model_cache,
         "dag_bundle_versioning": dag_bundle_versioning,
         "asset_partitioning": asset_partitioning,
+        "airflow_stateful_orchestration": airflow_stateful_orchestration,
         "multi_team_readiness": multi_team_readiness,
         "event_driven_assets": event_driven_assets,
         "pod_resource_envelopes": pod_resource_envelopes,
@@ -285,7 +374,13 @@ def demo(output: str | Path) -> dict:
         "hpa_scale_to_zero": hpa_scale_to_zero,
         "suspended_job_resources": suspended_job_resources,
         "constrained_impersonation": constrained_impersonation,
+        "ai_workload_telemetry": ai_workload_telemetry,
         "release_admission": release_admission,
+        "operational_readiness": operational_readiness,
+        "judge_demo_cockpit": judge_demo_cockpit,
+        "operator_drill": operator_drill,
+        "reliability_signal_mesh": reliability_signal_mesh,
+        "narrated_demo_studio": narrated_demo_studio,
         "artifact_index": str(artifact_index),
         "orchestration_scorecard": orchestration_scorecard,
         "supply_chain": supply_chain,
@@ -299,6 +394,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     for command in [
         "demo",
+        "runtime-init",
         "deploy",
         "predict",
         "simulate",
@@ -329,6 +425,8 @@ def main(argv: list[str] | None = None) -> int:
         "kuberay-plan",
         "inference-gateway-plan",
         "semantic-telemetry-plan",
+        "llm-inference-readiness",
+        "transformer-explainer-readiness",
         "deadline-alerts-plan",
         "cost-observability",
         "elastic-workload-plan",
@@ -338,6 +436,7 @@ def main(argv: list[str] | None = None) -> int:
         "model-cache",
         "dag-bundle-plan",
         "asset-partitioning-plan",
+        "airflow-stateful-orchestration",
         "multi-team-readiness",
         "event-driven-assets",
         "pod-resource-envelopes",
@@ -359,11 +458,13 @@ def main(argv: list[str] | None = None) -> int:
     ]:
         cmd = sub.add_parser(command)
         cmd.add_argument("--output", default=".local")
-        if command in {"deploy", "simulate"}:
+        if command in {"deploy", "simulate", "runtime-init"}:
             cmd.add_argument("--requests", type=int, default=120)
     args = parser.parse_args(argv)
     if args.command == "demo":
         print(json.dumps(demo(args.output), indent=2, sort_keys=True))
+    elif args.command == "runtime-init":
+        print(json.dumps(runtime_init(args.output, requests=args.requests), indent=2, sort_keys=True))
     elif args.command == "deploy":
         print(json.dumps(deploy(args.output), indent=2, sort_keys=True))
     elif args.command == "predict":
@@ -424,6 +525,10 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_inference_gateway_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "semantic-telemetry-plan":
         print(json.dumps(build_semantic_telemetry_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "llm-inference-readiness":
+        print(json.dumps(build_llm_inference_readiness_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "transformer-explainer-readiness":
+        print(json.dumps(build_transformer_explainer_readiness_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "deadline-alerts-plan":
         print(json.dumps(build_deadline_alert_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "cost-observability":
@@ -442,6 +547,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(build_dag_bundle_versioning_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "asset-partitioning-plan":
         print(json.dumps(build_asset_partitioning_plan(args.output), indent=2, sort_keys=True))
+    elif args.command == "airflow-stateful-orchestration":
+        print(json.dumps(build_airflow_stateful_orchestration_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "multi-team-readiness":
         print(json.dumps(build_multi_team_readiness_plan(args.output), indent=2, sort_keys=True))
     elif args.command == "event-driven-assets":

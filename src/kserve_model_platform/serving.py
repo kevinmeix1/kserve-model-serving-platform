@@ -21,7 +21,7 @@ def deploy(root: str | Path, *, challenger_percent: int = 10, shadow: bool = Tru
         "service_name": "credit-risk-router",
         "namespace": "mlops-serving",
         "status": "Ready",
-        "runtime": "kserve-sklearnserver",
+        "runtime": "kserve-v2-custom-runtime",
         "protocol": "v2",
         "champion": current["champion"],
         "challenger": current["challenger"],

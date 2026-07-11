@@ -1,0 +1,15 @@
+Welcome to the KServe Model Serving Platform.
+
+This project demonstrates that production inference is a release system, not simply a prediction endpoint. The control room begins with the current champion and challenger revisions, the canary gate, observed latency, and the serving protocol. Every value is generated from deterministic local state so a reviewer can reproduce the same evidence.
+
+The Live Inference Lab calls the running Open Inference V2 API. Here I have increased debt ratio and delinquencies to create a high-risk request. The response shows the selected route, exact model revision, risk score, risk band, browser-observed latency, and idempotent replay state. The status panel is also live. It reads the atomic snapshot generation, champion and challenger traffic split, persistent ledger count, and detached worker count from a bounded endpoint that never exposes feature payloads.
+
+Below the lab, the canary gate combines p95 latency, error rate, shadow divergence, and proof that the challenger received traffic. Passing metrics do not directly mutate production. The rollout planner recommends advance, hold, or rollback, while explicit promotion remains a controlled action.
+
+The middle of the dashboard is where the project stops looking like a single endpoint. The Inference Gateway panel models Gateway API routing, endpoint picker fallback, priority objectives, and autoscaler safety. The generative AI telemetry panel separates time-to-first-token, tokens per second, prompt cost, and queue pressure so an operator can debug large-model serving without mixing it with tabular fraud inference.
+
+The LLM readiness and Transformer Explainer panels show the KServe-specific depth. They cover ModelCar artifact controls, vLLM style serving budgets, LoRA adapter capacity, predictor-transformer-explainer topology, async explanation routing, and the collocation trade-off. A judge can see which parts are executable locally and which are migration-ready Kubernetes contracts.
+
+The runtime uses a SQLite write-ahead-log ledger locally to prove restart-safe idempotency and single-flight execution. Timeouts retain capacity until detached work finishes, and the same request identifier retrieves the eventual result instead of scoring twice. In a multi-pod deployment, that ledger moves to a shared transactional store.
+
+The repository includes KServe manifests, progressive delivery policy, Airflow asset orchestration, Kueue capacity controls, OpenTelemetry semantics, Prometheus metrics, failure drills, release admission, and rollback evidence. The point of the demo is that a judge can trace one prediction all the way from request contract to model revision, rollout policy, and recovery posture.

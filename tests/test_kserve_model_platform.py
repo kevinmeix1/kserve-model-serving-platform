@@ -1,21 +1,27 @@
 from __future__ import annotations
 
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
+from kserve_model_platform import __version__
 from kserve_model_platform.accelerator_plan import build_accelerator_capacity_plan
 from kserve_model_platform.admin_access_diagnostics import build_admin_access_diagnostic_plan
 from kserve_model_platform.advanced_device_sharing import build_advanced_device_sharing_plan
+from kserve_model_platform.ai_workload_telemetry import build_ai_workload_telemetry_plan
+from kserve_model_platform.airflow_stateful_orchestration import build_airflow_stateful_orchestration_plan
 from kserve_model_platform.asset_partitioning import build_asset_partitioning_plan
 from kserve_model_platform.chaos import run_chaos_drill
 from kserve_model_platform.cloud_migration import build_cloud_migration_plan
-from kserve_model_platform.cli import demo, monitor, promote, rollback, simulate
+from kserve_model_platform.cli import demo, monitor, promote, rollback, runtime_init, simulate
 from kserve_model_platform.cohort_fair_sharing import build_cohort_fair_sharing_plan
 from kserve_model_platform.control_plane_diagnostics import build_control_plane_diagnostics_plan
 from kserve_model_platform.constrained_impersonation import build_constrained_impersonation_plan
 from kserve_model_platform.cost_observability import build_cost_observability_report
 from kserve_model_platform.dag_bundle_versioning import build_dag_bundle_versioning_plan
+from kserve_model_platform.demo_cockpit import build_judge_demo_cockpit, build_operator_drill_lab
+from kserve_model_platform.narrated_demo_studio import build_narrated_demo_studio
 from kserve_model_platform.deadline_alerts import build_deadline_alert_plan
 from kserve_model_platform.disaster_recovery import build_disaster_recovery_plan
 from kserve_model_platform.device_allocation import build_device_allocation_plan
@@ -31,6 +37,7 @@ from kserve_model_platform.inplace_resize import build_inplace_resize_plan
 from kserve_model_platform.inference_gateway import build_inference_gateway_plan
 from kserve_model_platform.io import read_json, read_jsonl, write_json
 from kserve_model_platform.kuberay_capacity import build_kuberay_capacity_plan
+from kserve_model_platform.llm_inference_readiness import build_llm_inference_readiness_plan
 from kserve_model_platform.memory_qos import build_memory_qos_plan
 from kserve_model_platform.model_cache import build_model_cache_plan
 from kserve_model_platform.models import generate_requests, validate_payload
@@ -39,6 +46,7 @@ from kserve_model_platform.multi_team_readiness import build_multi_team_readines
 from kserve_model_platform.multikueue_dispatch import build_multikueue_dispatch_plan
 from kserve_model_platform.network_security import build_network_security_report
 from kserve_model_platform.orchestration_scorecard import build_orchestration_scorecard
+from kserve_model_platform.operational_readiness import build_operational_readiness_review
 from kserve_model_platform.pending_workload_visibility import build_pending_workload_visibility_plan
 from kserve_model_platform.policy_audit import audit_platform_policy
 from kserve_model_platform.performance_budget import build_performance_budget_report
@@ -46,10 +54,12 @@ from kserve_model_platform.pod_resource_envelopes import build_pod_resource_enve
 from kserve_model_platform.provisioning_admission import build_provisioning_admission_plan
 from kserve_model_platform.queue_simulator import build_queue_simulation
 from kserve_model_platform.release_admission import build_release_admission_decision, evaluate_release_admission
+from kserve_model_platform.reliability_signal_mesh import build_reliability_signal_mesh
 from kserve_model_platform.registry import aliases
 from kserve_model_platform.resource_health_status import build_resource_health_status_plan
 from kserve_model_platform.resource_optimizer import build_resource_optimization_report
 from kserve_model_platform.rollout_control import build_rollout_plan, evaluate_rollout, wilson_error_upper_bound
+from kserve_model_platform.runtime_contract import SERVER_VERSION
 from kserve_model_platform.runtime_security import build_runtime_security_plan
 from kserve_model_platform.serving import deploy, predict, route_alias
 from kserve_model_platform.semantic_telemetry import build_semantic_telemetry_plan
@@ -59,6 +69,7 @@ from kserve_model_platform.suspended_job_resources import build_suspended_job_re
 from kserve_model_platform.tenancy import build_tenancy_report
 from kserve_model_platform.topology_placement import build_topology_placement_plan
 from kserve_model_platform.traceability import build_trace_report
+from kserve_model_platform.transformer_explainer_readiness import build_transformer_explainer_readiness_plan
 from kserve_model_platform.workload_aware_scheduling import build_workload_aware_scheduling_plan
 
 
@@ -207,6 +218,22 @@ class KServeModelServingPlatformTest(unittest.TestCase):
         for expected in ["kind: ConfigMap", "otlp", "k8sattributes", "memory_limiter", "prometheus", "batch", "attributes/semantic_redaction", "gen_ai.input.messages"]:
             self.assertIn(expected, collector)
 
+    def test_ai_workload_telemetry_plan_covers_weighted_serving_routes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan = build_ai_workload_telemetry_plan(root)
+            resource_fields = set(plan["required_resource_fields"])
+            otel_fields = set(plan["required_otel_fields"])
+            routes = {workload["route"] for workload in plan["workloads"]}
+
+            self.assertTrue(plan["passed"])
+            self.assertIn("credit-risk-weighted-route", routes)
+            self.assertIn("pod.resources.requests.cpu", resource_fields)
+            self.assertTrue(any(field.startswith("dra.") for field in resource_fields))
+            self.assertIn("gen_ai.request.model", otel_fields)
+            self.assertTrue(any(workload["kind"] == "KServe Transformer" for workload in plan["workloads"]))
+            self.assertTrue((root / "reports" / "ai_workload_telemetry_plan.json").exists())
+
     def test_chaos_drill_and_chaos_mesh_assets_exist(self) -> None:
         repo = Path(__file__).resolve().parents[1]
         chaos_manifest = (repo / "kubernetes" / "chaos-experiments.yaml").read_text(encoding="utf-8")
@@ -335,10 +362,108 @@ class KServeModelServingPlatformTest(unittest.TestCase):
         workflow = (repo / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         makefile = (repo / "Makefile").read_text(encoding="utf-8")
 
-        for expected in ["actions/upload-artifact@v6", "actions/attest@v4", "attestations: write", "GITHUB_STEP_SUMMARY", "make ci-verify", "concurrency"]:
+        for expected in [
+            "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10",
+            "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f",
+            "actions/attest@f6bf1532d7d6793fce74eac584813a8eee607999",
+            "attestations: write",
+            "GITHUB_STEP_SUMMARY",
+            "make ci-verify",
+            "concurrency",
+        ]:
             self.assertIn(expected, workflow)
-        for expected in ["ci-verify:", "index.html", "tenancy_fairness_report.json", "identity_access_report.json", "pending_workload_visibility_plan.json", "flavor_fungibility_plan.json", "cohort_fair_sharing_plan.json", "pod_resource_envelope_plan.json", "event_driven_assets_plan.json", "multi_team_readiness_plan.json", "asset_partitioning_plan.json", "dag_bundle_versioning_plan.json", "model_cache_plan.json", "multikueue_dispatch_plan.json", "provisioning_admission_plan.json", "indexed_job_resilience_plan.json", "elastic_workload_plan.json", "cost_observability_report.json", "deadline_alert_plan.json", "semantic_telemetry_plan.json", "inference_gateway_plan.json", "kuberay_capacity_plan.json", "topology_placement_plan.json", "inplace_resize_plan.json", "admin_access_diagnostics_plan.json", "advanced_device_sharing_plan.json", "resource_health_status_plan.json", "device_allocation_plan.json", "release_admission_decision.json", "runtime_security_plan.json", "control_plane_diagnostics_plan.json", "memory_qos_plan.json", "hpa_scale_to_zero_plan.json", "suspended_job_resources_plan.json", "constrained_impersonation_plan.json", "workload_aware_scheduling_plan.json", "queue_simulation.json", "performance_budget.json", "accelerator_capacity_plan.json", "orchestration_scorecard.json", "supply_chain_evidence.json", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
+        for mutable_ref in [
+            "actions/checkout@v6",
+            "actions/setup-python@v6",
+            "actions/upload-artifact@v6",
+            "actions/attest@v4",
+        ]:
+            self.assertNotIn(mutable_ref, workflow)
+        for expected in ["ci-verify:", "index.html", "operational_readiness_review.json", "judge_demo_cockpit.html", "judge_demo_cockpit_manifest.json", "operator_drill_lab.html", "operator_drill_report.json", "reliability_signal_mesh.html", "reliability_signal_mesh.json", "narrated_demo_studio.html", "narrated_demo_studio.json", "remotion_demo_props.json", "narrated_demo_subtitle_plan.srt", "tenancy_fairness_report.json", "identity_access_report.json", "pending_workload_visibility_plan.json", "flavor_fungibility_plan.json", "cohort_fair_sharing_plan.json", "pod_resource_envelope_plan.json", "event_driven_assets_plan.json", "multi_team_readiness_plan.json", "asset_partitioning_plan.json", "dag_bundle_versioning_plan.json", "model_cache_plan.json", "multikueue_dispatch_plan.json", "provisioning_admission_plan.json", "indexed_job_resilience_plan.json", "elastic_workload_plan.json", "cost_observability_report.json", "deadline_alert_plan.json", "semantic_telemetry_plan.json", "llm_inference_readiness_plan.json", "transformer_explainer_readiness_plan.json", "inference_gateway_plan.json", "kuberay_capacity_plan.json", "topology_placement_plan.json", "inplace_resize_plan.json", "admin_access_diagnostics_plan.json", "advanced_device_sharing_plan.json", "resource_health_status_plan.json", "device_allocation_plan.json", "release_admission_decision.json", "runtime_security_plan.json", "control_plane_diagnostics_plan.json", "memory_qos_plan.json", "hpa_scale_to_zero_plan.json", "suspended_job_resources_plan.json", "constrained_impersonation_plan.json", "workload_aware_scheduling_plan.json", "queue_simulation.json", "performance_budget.json", "accelerator_capacity_plan.json", "orchestration_scorecard.json", "supply_chain_evidence.json", "governance_evidence_bundle.json", "cloud_migration_plan.json"]:
             self.assertIn(expected, makefile)
+
+    def test_operational_readiness_review_aggregates_serving_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = demo(root)
+            review = build_operational_readiness_review(root)
+
+            self.assertEqual(result["operational_readiness"]["target"], "kserve://mlops-serving/credit-risk-router")
+            self.assertGreaterEqual(review["readiness_score"], 80.0)
+            self.assertIn("reports/rollout_control_plan.json", review["operator_review_packet"])
+            self.assertTrue(any(check["name"] == "progressive_delivery_decisioned" for check in review["checks"]))
+            self.assertTrue((root / "reports" / "operational_readiness_review.json").exists())
+
+    def test_judge_demo_cockpit_links_serving_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = demo(root)
+            cockpit = build_judge_demo_cockpit(
+                root,
+                project_name="KServe Model Serving Platform",
+                primary_dashboard="kserve_serving_dashboard.html",
+                demo_video="../../docs/demo/kserve-judge-demo.mp4",
+            )
+            html = (root / "reports" / "judge_demo_cockpit.html").read_text(encoding="utf-8")
+            self.assertEqual(result["judge_demo_cockpit"]["scenario_count"], 4)
+            self.assertGreaterEqual(cockpit["evidence_count"], 8)
+            self.assertIn("KServe Model Serving Platform", html)
+            self.assertIn("Reviewable Evidence", html)
+
+    def test_operator_drill_lab_rehearses_serving_recovery(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = demo(root)
+            drill = build_operator_drill_lab(
+                root,
+                project_name="KServe Model Serving Platform",
+                scenario="serving drill",
+                primary_dashboard="kserve_serving_dashboard.html",
+                runbook="../../docs/runbook.md",
+            )
+            html = (root / "reports" / "operator_drill_lab.html").read_text(encoding="utf-8")
+            self.assertEqual(result["operator_drill"]["status"], "ready")
+            self.assertEqual(len(drill["incident_roles"]), 4)
+            self.assertIn("Failure Drill Timeline", html)
+            self.assertTrue((root / "reports" / "operator_drill_report.json").exists())
+
+    def test_narrated_demo_studio_generates_serving_video_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = demo(root)
+            studio = build_narrated_demo_studio(
+                root,
+                project_name="KServe Model Serving Platform",
+                domain="Real-time inference and canary rollout",
+                primary_dashboard="kserve_serving_dashboard.html",
+                demo_video="../../docs/demo/kserve-judge-demo.mp4",
+            )
+            html = (root / "reports" / "narrated_demo_studio.html").read_text(encoding="utf-8")
+            props = read_json(root / "reports" / "remotion_demo_props.json")
+            self.assertEqual(result["narrated_demo_studio"]["status"], "ready")
+            self.assertIn("kokoro_local", {item["name"] for item in studio["natural_voice_backends"]})
+            self.assertIn("Remotion props", html)
+            self.assertEqual(props["durationInFrames"], 5220)
+            self.assertTrue((root / "reports" / "narrated_demo_subtitle_plan.srt").exists())
+
+    def test_reliability_signal_mesh_connects_serving_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = demo(root)
+            mesh = build_reliability_signal_mesh(
+                root,
+                project_name="KServe Model Serving Platform",
+                domain="serving mesh",
+                primary_dashboard="kserve_serving_dashboard.html",
+            )
+            html = (root / "reports" / "reliability_signal_mesh.html").read_text(encoding="utf-8")
+            self.assertEqual(result["reliability_signal_mesh"]["status"], "ready")
+            self.assertEqual(mesh["readiness_score"], 100.0)
+            self.assertIn("kueue.weighted_share", mesh["semantic_contract"])
+            self.assertEqual(mesh["signals"][3]["name"], "slo_burn")
+            self.assertIn("Evidence Contract", html)
+            self.assertTrue((root / "reports" / "reliability_signal_mesh.json").exists())
 
     def test_accelerator_capacity_plan_and_kubernetes_assets_exist(self) -> None:
         repo = Path(__file__).resolve().parents[1]
@@ -492,10 +617,24 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue(report["passed"])
             self.assertEqual(report["recommended_action"], "enable_gateway_inference_extension")
             self.assertEqual(report["pool"]["api_version"], "inference.networking.k8s.io/v1")
+            self.assertEqual(report["simulation"]["slo_summary"]["passed_classes"], report["simulation"]["slo_summary"]["request_classes"])
+            self.assertEqual(report["simulation"]["fail_open_drill"]["expected_behavior"], "FailOpen")
+            self.assertTrue(any(item["traffic_class"] == "batch" and item["priority"] < 0 for item in report["simulation"]["route_decisions"]))
             self.assertTrue((root / "reports" / "inference_gateway_plan.json").exists())
-        for expected in ["InferencePool", "InferenceObjective", "endpointPickerRef", "FailOpen", "HTTPRoute", "CreditRiskEndpointPickerUnavailable"]:
+        for expected in [
+            "InferencePool",
+            "InferenceObjective",
+            "endpointPickerRef",
+            "FailOpen",
+            "HTTPRoute",
+            "HorizontalPodAutoscaler",
+            "PodDisruptionBudget",
+            "credit-risk-inference-fail-open-route",
+            "CreditRiskEndpointPickerUnavailable",
+            "CreditRiskEndpointPickerHotShard",
+        ]:
             self.assertIn(expected, manifest)
-        for expected in ["Gateway API Inference Extension", "InferencePool", "Endpoint Picker", "InferenceObjective"]:
+        for expected in ["Gateway API Inference Extension", "InferencePool", "Endpoint Picker", "InferenceObjective", "deterministic routing simulation", "fail-open route"]:
             self.assertIn(expected, docs)
 
     def test_semantic_telemetry_plan_and_collector_assets_exist(self) -> None:
@@ -509,10 +648,63 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue(report["passed"])
             self.assertEqual(report["recommended_action"], "enable_semantic_telemetry_contract")
             self.assertIn("gen_ai.request.model", report["schema"]["required_attributes"])
+            self.assertTrue(report["genai_rollout_metrics"]["passed"])
+            self.assertEqual(report["genai_rollout_metrics"]["analysis_template"], "credit-risk-genai-serving-quality")
+            self.assertTrue(any(metric["name"] == "groundedness_score_p05" for metric in report["genai_rollout_metrics"]["metrics"]))
             self.assertTrue((root / "reports" / "semantic_telemetry_plan.json").exists())
-        for expected in ["attributes/semantic_redaction", "gen_ai.input.messages", "gen_ai.output.messages", "deployment.environment.name"]:
+        for expected in ["attributes/semantic_redaction", "gen_ai.input.messages", "gen_ai.output.messages", "deployment.environment.name", "CreditRiskGenAITokenCostBudgetExceeded", "AnalysisTemplate", "credit-risk-genai-serving-quality"]:
             self.assertIn(expected, collector)
-        for expected in ["Semantic Telemetry", "GenAI", "Kubernetes", "redaction"]:
+        for expected in ["Semantic Telemetry", "GenAI", "Kubernetes", "redaction", "token budget", "groundedness"]:
+            self.assertIn(expected, docs)
+
+    def test_llm_inference_readiness_plan_and_assets_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        manifest = (repo / "kserve" / "llm-inference-readiness.yaml").read_text(encoding="utf-8")
+        docs = (repo / "docs" / "llm-inference-readiness.md").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = demo(root)
+            report = build_llm_inference_readiness_plan(root)
+            dashboard = (root / "reports" / "kserve_serving_dashboard.html").read_text(encoding="utf-8")
+            index = (root / "reports" / "index.html").read_text(encoding="utf-8")
+
+            self.assertTrue(result["llm_readiness"]["passed"])
+            self.assertTrue(report["passed"])
+            self.assertEqual(report["serving_contract"]["api"], "serving.kserve.io/v1alpha1 LLMInferenceService")
+            self.assertEqual(report["serving_contract"]["runtime"], "vLLM")
+            self.assertEqual(report["routing"]["passed_classes"], report["routing"]["request_classes"])
+            self.assertTrue(any(check["name"] == "modelcar_oci_artifacts_pinned" for check in report["checks"]))
+            self.assertTrue((root / "reports" / "llm_inference_readiness_plan.json").exists())
+            self.assertIn("LLM Inference Readiness", dashboard)
+            self.assertIn("llm_inference_readiness_plan.json", index)
+        for expected in ["LLMInferenceService", "InferencePool", "vllm", "oci://", "FailOpen", "vllm_time_to_first_token_seconds_bucket", "PolicyAssistantLoRAAdapterBudgetHigh"]:
+            self.assertIn(expected, manifest)
+        for expected in ["LLMInferenceService", "vLLM", "ModelCar", "TTFT", "TPOT", "LoRA"]:
+            self.assertIn(expected, docs)
+
+    def test_transformer_explainer_readiness_plan_and_assets_exist(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        manifest = (repo / "kserve" / "transformer-explainer-topology.yaml").read_text(encoding="utf-8")
+        docs = (repo / "docs" / "transformer-explainer-readiness.md").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = demo(root)
+            report = build_transformer_explainer_readiness_plan(root)
+            dashboard = (root / "reports" / "kserve_serving_dashboard.html").read_text(encoding="utf-8")
+            index = (root / "reports" / "index.html").read_text(encoding="utf-8")
+            roles = {stage["role"] for stage in report["serving_stages"]}
+
+            self.assertTrue(result["transformer_explainer"]["passed"])
+            self.assertTrue(report["passed"])
+            self.assertEqual(report["recommended_action"], "enable_transformer_explainer_topology")
+            self.assertEqual(roles, {"predictor", "transformer", "explainer"})
+            self.assertEqual(report["collocation_decision"]["current_choice"], "separate transformer, async explainer")
+            self.assertTrue((root / "reports" / "transformer_explainer_readiness_plan.json").exists())
+            self.assertIn("Transformer And Explainer Readiness", dashboard)
+            self.assertIn("transformer_explainer_readiness_plan.json", index)
+        for expected in ["ServingRuntime", "transformer-container", "--enable_predictor_health_check", "async-risk-explainer", "KServeTransformerPredictorHealthCheckFailing"]:
+            self.assertIn(expected, manifest)
+        for expected in ["Transformer", "Explainer", "collocation", "predictor health", "fallback"]:
             self.assertIn(expected, docs)
 
     def test_airflow_deadline_alert_plan_and_docs_exist(self) -> None:
@@ -526,6 +718,10 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertEqual(report["recommended_action"], "enable_airflow3_serving_deadline_alerts")
             self.assertEqual(report["runtime_config"]["AIRFLOW__CALLBACKS__CALLBACK_EXECUTION_TIMEOUT"], "300")
             self.assertTrue(any(policy["name"] == "gateway_route_convergence" for policy in report["deadline_policies"]))
+            self.assertIn("callback_contracts", report)
+            self.assertIn("page_route_owner", report["callback_contracts"])
+            self.assertTrue(all(policy["callback_contract"]["dedupe_key"] for policy in report["deadline_policies"]))
+            self.assertTrue(all("allowed_side_effect" in policy["callback_contract"] for policy in report["deadline_policies"]))
             self.assertTrue((root / "reports" / "deadline_alert_plan.json").exists())
         for expected in ["Deadline Alerts", "legacy Airflow 2 SLA", "HTTPRoute", "rollback"]:
             self.assertIn(expected, docs)
@@ -701,6 +897,24 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertIn(expected, docs)
         for expected in ["CronPartitionTimetable", "PartitionedAssetTimetable", "StartOfHourMapper", "dag_run.partition_key", "partitioned_kserve_route_decision"]:
             self.assertIn(expected, dag)
+
+    def test_airflow33_stateful_orchestration_contract(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        dag = (repo / "airflow" / "dags" / "airflow33_stateful_serving_dag.py").read_text(encoding="utf-8")
+        docs = (repo / "docs" / "airflow-stateful-orchestration.md").read_text(encoding="utf-8")
+        ci = (repo / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        validator = (repo / "tools" / "validate_airflow33_dag.py").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            report = build_airflow_stateful_orchestration_plan(tmp, repo_root=repo)
+
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["recommended_action"], "adopt_airflow_33_stateful_serving_contract")
+        self.assertIn("real_airflow_parse_gate", {check["name"] for check in report["checks"] if check["passed"]})
+        for expected in ["task_state_store", "asset_state_store", "NEVER_EXPIRE", "ExceptionRetryPolicy", "RollupMapper", "FanOutMapper", "PartitionedAtRuntime"]:
+            self.assertIn(expected, dag)
+        self.assertIn("dag.validate()", validator)
+        self.assertIn("apache-airflow==3.3.0", ci)
+        self.assertIn("Production Boundary", docs)
 
     def test_multi_team_readiness_plan_and_airflow_config_exist(self) -> None:
         repo = Path(__file__).resolve().parents[1]
@@ -980,8 +1194,11 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertIn("provisioning_admission_checks", names)
             self.assertIn("multikueue_dispatch", names)
             self.assertIn("kserve_model_cache", names)
+            self.assertIn("kserve_llm_inference_readiness", names)
+            self.assertIn("kserve_transformer_explainer_topology", names)
             self.assertIn("airflow_dag_bundle_versioning", names)
             self.assertIn("airflow_asset_partitioning", names)
+            self.assertIn("airflow_stateful_orchestration", names)
             self.assertIn("airflow_multi_team_readiness", names)
             self.assertIn("airflow_event_driven_assets", names)
             self.assertIn("pod_resource_envelopes", names)
@@ -1055,6 +1272,8 @@ class KServeModelServingPlatformTest(unittest.TestCase):
                 "model_cache_plan.json",
                 "dag_bundle_versioning_plan.json",
                 "asset_partitioning_plan.json",
+                "airflow_stateful_orchestration_plan.json",
+                "reliability_signal_mesh.html",
                 "multi_team_readiness_plan.json",
                 "event_driven_assets_plan.json",
                 "pod_resource_envelope_plan.json",
@@ -1109,6 +1328,29 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertEqual(plan["next_percent"], 25)
             self.assertEqual(failed["action"], "rollback")
 
+    def test_runtime_init_has_no_repository_scaffolding_dependency(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = runtime_init(root, requests=24)
+
+            self.assertEqual(result["simulation"]["success_count"], 24)
+            self.assertEqual(result["deployment"]["runtime"], "kserve-v2-custom-runtime")
+            self.assertTrue((root / "registry" / "credit-risk" / "aliases.json").exists())
+            self.assertTrue((root / "deployments" / "kserve_state.json").exists())
+            self.assertTrue((root / "reports" / "kserve_serving_dashboard.html").exists())
+            dashboard = (root / "reports" / "kserve_serving_dashboard.html").read_text()
+            self.assertIn("Live Inference Lab", dashboard)
+            self.assertIn("Serving Evidence", dashboard)
+            self.assertIn('data-testid="release-evidence"', dashboard)
+            self.assertIn("Traffic Review", dashboard)
+            self.assertIn('data-testid="run-review"', dashboard)
+            self.assertIn("edge-tts neural narration", dashboard)
+            self.assertIn("function renderDemoTheater", dashboard)
+            self.assertIn("Open Inference V2 with idempotency", dashboard)
+            self.assertIn('id="inferenceForm"', dashboard)
+            self.assertIn('/api/console/status', dashboard)
+            self.assertFalse((root / "reports" / "governance_evidence_bundle.json").exists())
+
     def test_demo_writes_dashboard_and_passes_canary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1128,6 +1370,8 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue((root / "reports" / "kuberay_capacity_plan.json").exists())
             self.assertTrue((root / "reports" / "inference_gateway_plan.json").exists())
             self.assertTrue((root / "reports" / "semantic_telemetry_plan.json").exists())
+            self.assertTrue((root / "reports" / "llm_inference_readiness_plan.json").exists())
+            self.assertTrue((root / "reports" / "transformer_explainer_readiness_plan.json").exists())
             self.assertTrue((root / "reports" / "deadline_alert_plan.json").exists())
             self.assertTrue((root / "reports" / "cost_observability_report.json").exists())
             self.assertTrue((root / "reports" / "elastic_workload_plan.json").exists())
@@ -1156,6 +1400,13 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue((root / "reports" / "release_admission_decision.json").exists())
             self.assertTrue((root / "reports" / "orchestration_scorecard.json").exists())
             self.assertTrue((root / "reports" / "supply_chain_evidence.json").exists())
+            dashboard = (root / "reports" / "kserve_serving_dashboard.html").read_text(encoding="utf-8")
+            self.assertIn("Inference Gateway", dashboard)
+            self.assertIn("GenAI Telemetry Gates", dashboard)
+            self.assertIn("Transformer And Explainer Readiness", dashboard)
+            self.assertIn("Groundedness p05", dashboard)
+            self.assertIn("credit risk inference pool", dashboard.replace("-", " "))
+            self.assertIn("FailOpen", dashboard)
             self.assertEqual(result["simulation"]["success_count"], 120)
 
     def test_payload_contract_rejects_bad_request(self) -> None:
@@ -1225,6 +1476,53 @@ class KServeModelServingPlatformTest(unittest.TestCase):
             self.assertTrue(rolled_back["rolled_back"])
             self.assertEqual(after_rollback["champion"], "risk-model-2026-07-01")
             self.assertEqual(deployment["status"], "Ready")
+
+    def test_runnable_kserve_v2_runtime_assets_are_wired(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        api = (repo / "src" / "kserve_model_platform" / "api.py").read_text(encoding="utf-8")
+        runtime = (repo / "src" / "kserve_model_platform" / "runtime_state.py").read_text(encoding="utf-8")
+        protocol = (repo / "src" / "kserve_model_platform" / "v2_protocol.py").read_text(encoding="utf-8")
+        compose = (repo / "compose.yaml").read_text(encoding="utf-8")
+        dockerfile = (repo / "Dockerfile").read_text(encoding="utf-8")
+        constraints = (repo / "requirements-serving.lock").read_text(encoding="utf-8")
+        manifest = (repo / "kserve" / "custom-runtime-inferenceservice.yaml").read_text(encoding="utf-8")
+        workflow = (repo / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        docs = (repo / "docs" / "kserve-v2-serving-runtime.md").read_text(encoding="utf-8")
+
+        for expected in ["/v2/health/live", "/v2/health/ready", "/v2/models/{model_name}/infer", "JsonLogFormatter", "kserve_inference_requests_total"]:
+            self.assertIn(expected, api)
+        for expected in ["PredictionLedger", "SnapshotManager", "INFERENCE_MAX_CONCURRENCY", "INFERENCE_MAX_REQUEST_BYTES"]:
+            self.assertIn(expected, runtime)
+        for expected in ["InferenceRequest", "decode_batch", "ModelVersionNotFound", "requested output names must be unique"]:
+            self.assertIn(expected, protocol)
+        for expected in ["state-init", "runtime-init", "service_completed_successfully", "service_healthy", "read_only: true", "cap_drop"]:
+            self.assertIn(expected, compose)
+        for expected in ["USER 65532:65532", "HEALTHCHECK", "--workers", "1", "requirements-serving.lock"]:
+            self.assertIn(expected, dockerfile)
+        for expected in ["startupProbe", "readinessProbe", "livenessProbe", "readOnlyRootFilesystem: true", "runAsNonRoot: true", "fsGroup: 65532", "shared-idempotency-store-required", "serving.kserve.io/autoscaler-class: none"]:
+            self.assertIn(expected, manifest)
+        for expected in ["fastapi==0.139.0", "pyyaml==6.0.3", "build==1.5.1", "pip==25.3", "setuptools==83.0.0", "wheel==0.47.0"]:
+            self.assertIn(expected, constraints)
+        self.assertIn("serving-runtime-contract", workflow)
+        self.assertIn("make compose-smoke", workflow)
+        self.assertIn("make kserve-schema-contract", workflow)
+        self.assertIn("make package-smoke", workflow)
+        self.assertIn("make verify-serving-lock", workflow)
+        self.assertIn("Production Boundary", docs)
+
+    def test_package_and_server_versions_have_one_source(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        pyproject = tomllib.loads((repo / "pyproject.toml").read_text(encoding="utf-8"))
+        manifest = (repo / "kserve" / "custom-runtime-inferenceservice.yaml").read_text(encoding="utf-8")
+
+        self.assertEqual(__version__, SERVER_VERSION)
+        self.assertIn("version", pyproject["project"]["dynamic"])
+        self.assertNotIn("version", pyproject["project"])
+        self.assertEqual(
+            pyproject["tool"]["setuptools"]["dynamic"]["version"]["attr"],
+            "kserve_model_platform.__version__",
+        )
+        self.assertIn(f'app.kubernetes.io/version: "{__version__}"', manifest)
 
 
 if __name__ == "__main__":

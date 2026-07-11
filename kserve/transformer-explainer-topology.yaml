@@ -1,0 +1,157 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: ServingRuntime
+metadata:
+  name: credit-risk-v2-runtime
+  namespace: mlops-serving
+spec:
+  supportedModelFormats:
+    - name: sklearn
+      version: "1"
+      autoSelect: true
+  containers:
+    - name: kserve-container
+      image: ghcr.io/kevinmeix1/credit-risk-v2-runtime:2026.07
+      ports:
+        - containerPort: 8080
+          name: http
+      readinessProbe:
+        httpGet:
+          path: /v2/health/ready
+          port: 8080
+      resources:
+        requests:
+          cpu: 500m
+          memory: 512Mi
+        limits:
+          cpu: "2"
+          memory: 2Gi
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: credit-risk-transformer-topology
+  namespace: mlops-serving
+  annotations:
+    serving.kserve.io/deploymentMode: Standard
+    platform.mlops.dev/topology: transformer-predictor-explainer
+spec:
+  predictor:
+    serviceAccountName: credit-risk-predictor
+    model:
+      modelFormat:
+        name: sklearn
+      runtime: credit-risk-v2-runtime
+      storageUri: oci://ghcr.io/kevinmeix1/credit-risk-modelcar:2026.07
+      resources:
+        requests:
+          cpu: 500m
+          memory: 512Mi
+        limits:
+          cpu: "2"
+          memory: 2Gi
+  transformer:
+    serviceAccountName: credit-risk-predictor
+    containers:
+      - name: transformer-container
+        image: ghcr.io/kevinmeix1/credit-risk-transformer:2026.07
+        args:
+          - --predictor_protocol=v2
+          - --http_port=8080
+          - --predictor_host=credit-risk-transformer-topology-predictor.mlops-serving.svc.cluster.local
+          - --enable_predictor_health_check
+          - --redact_payload_fields=income,debt_ratio,utilization
+        ports:
+          - containerPort: 8080
+            name: http
+        readinessProbe:
+          httpGet:
+            path: /v2/health/ready
+            port: 8080
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: async-risk-explainer
+  namespace: mlops-serving
+  labels:
+    app.kubernetes.io/component: explainer
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: async-risk-explainer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: async-risk-explainer
+        app.kubernetes.io/component: explainer
+        platform.mlops.dev/traffic-class: incident-analysis
+    spec:
+      serviceAccountName: canary-analysis-runner
+      containers:
+        - name: explainer
+          image: ghcr.io/kevinmeix1/credit-risk-explainer:2026.07
+          env:
+            - name: EXPLANATION_MODE
+              value: deferred
+            - name: MAX_QUEUE_AGE_SECONDS
+              value: "300"
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: async-risk-explainer
+  namespace: mlops-serving
+spec:
+  minReplicas: 0
+  maxReplicas: 6
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: async-risk-explainer
+  metrics:
+    - type: External
+      external:
+        metric:
+          name: kserve_async_explainer_queue_depth
+        target:
+          type: AverageValue
+          averageValue: "10"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kserve-transformer-explainer-alerts
+  namespace: monitoring
+spec:
+  groups:
+    - name: mlops.kserve.transformer-explainer
+      rules:
+        - alert: KServeTransformerPredictorHealthCheckFailing
+          expr: max(kserve_transformer_predictor_health_check_failed) > 0
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: Transformer readiness cannot verify predictor health.
+        - alert: KServeExplainerBacklogHigh
+          expr: max(kserve_async_explainer_queue_depth) > 50
+          for: 10m
+          labels:
+            severity: info
+          annotations:
+            summary: Async explainer queue is high; keep explanations off the hot path.
