@@ -315,7 +315,7 @@ def demo(output: str | Path) -> dict:
     artifact_index = render_artifact_index(
         root,
         title="KServe Model Serving Platform",
-        description="Reviewer landing page for generated serving dashboard, rollout evidence, SLOs, migration, and reliability artifacts.",
+        description="Generated registry for serving contracts, rollout decisions, SLO budgets, capacity plans, and recovery evidence.",
         dashboard="kserve_serving_dashboard.html",
     )
     orchestration_scorecard = build_orchestration_scorecard(root, project="KServe Model Serving Platform")

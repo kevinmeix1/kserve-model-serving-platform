@@ -2,6 +2,8 @@
 
 This guide explains the complete serving system, the screenshots to review, and the production ideas each artifact demonstrates.
 
+The generated app follows the tested [ServeOps design contract](design-system.md), including its offline rendering, accessibility, and responsive QA rules.
+
 ## Full Architecture
 
 ```mermaid
@@ -39,9 +41,9 @@ flowchart TB
 
   subgraph UI["Observability and demo layer"]
     OBS --> DASH["Serving dashboard"]
-    DASH --> COCKPIT["Judge demo cockpit"]
+    DASH --> COCKPIT["Operations review"]
     DASH --> MESH["Reliability Signal Mesh"]
-    COCKPIT --> NARRATED["Narrated Demo Studio"]
+    COCKPIT --> NARRATED["Narrated Run Review"]
   end
 
   GATES --> MESH
@@ -55,13 +57,13 @@ The executable core is the local Open Inference V2 runtime and deterministic rel
 
 ## Screenshot Walkthrough
 
-Fresh full-page captures from the generated app are available as a linear demo path:
+Fresh browser-verified captures from the generated app are available as a linear demo path:
 
 | Step | Screenshot | What it proves |
 | --- | --- | --- |
-| 0 | `docs/screenshots/study-00-artifact-index.png` | The generated artifact index gives reviewers one launch point. |
+| 0 | `docs/screenshots/study-00-artifact-index.png` | The generated artifact index gives operators one launch point. |
 | 1 | `docs/screenshots/study-01-main-dashboard.png` | The serving dashboard is readable end to end. |
-| 2 | `docs/screenshots/study-02-judge-cockpit.png` | The portfolio cockpit groups evidence by reviewer intent. |
+| 2 | `docs/screenshots/study-02-judge-cockpit.png` | The operations review groups evidence by operational concern. |
 | 3 | `docs/screenshots/study-03-operator-drill.png` | Serving failure recovery is rehearsed as an operator workflow. |
 | 4 | `docs/screenshots/study-04-reliability-signal-mesh.png` | Serving signals are tied to orchestration and release decisions. |
 | 5 | `docs/screenshots/study-05-narrated-demo-studio.png` | The narration and video plan can be reviewed without running tools. |
@@ -69,16 +71,16 @@ Fresh full-page captures from the generated app are available as a linear demo p
 1. **Serving dashboard**: `docs/screenshots/dashboard.png`
    Shows model versions, traffic split, prediction logs, canary decision, and serving metrics.
 
-2. **Gateway and live inference lab**: `docs/screenshots/dashboard-gateway.png`
+2. **Gateway and live inference lab** in the main dashboard
    Demonstrates request routing, idempotency evidence, runtime status, and V2 request behavior.
 
-3. **LLM readiness panel**: `docs/screenshots/dashboard-llm-readiness.png`
+3. **LLM readiness panel** in the main dashboard
    Explains vLLM, ModelCar/OCI artifacts, TTFT/TPOT gates, endpoint picking, and cache-aware rollout.
 
-4. **Transformer/explainer readiness**: `docs/screenshots/dashboard-transformer-explainer.png`
+4. **Transformer/explainer readiness** in the main dashboard
    Shows how predictor health, transformer latency, async explainer scaling, and fallback routes are controlled.
 
-5. **Judge demo cockpit**: `docs/screenshots/dashboard-judge-cockpit.jpg`
+5. **Operations review**: `docs/screenshots/study-02-judge-cockpit.png`
    The recommended reviewer entry point for seeing release, observability, governance, and operator handoff together.
 
 6. **Operator drill lab**: `docs/screenshots/dashboard-operator-drill.png`
@@ -87,10 +89,10 @@ Fresh full-page captures from the generated app are available as a linear demo p
 7. **Reliability Signal Mesh**: `docs/screenshots/dashboard-reliability-signal-mesh.png`
    Connects serving health with orchestration events, resource pressure, and release admission.
 
-8. **Narrated Demo Studio**: `docs/screenshots/dashboard-narrated-demo-studio.png`
+8. **Narrated Run Review**: `docs/screenshots/dashboard-narrated-demo-studio.png`
    Provides the voice/video plan, subtitles, and Remotion props for a polished demo.
 
-9. **Mobile captures**: `docs/screenshots/dashboard-mobile.png`, `docs/screenshots/dashboard-llm-readiness-mobile.png`, `docs/screenshots/dashboard-transformer-explainer-mobile.png`
+9. **Mobile capture**: `docs/screenshots/dashboard-mobile.png`
    Prove that the app remains reviewable on narrow screens.
 
 ## How To Study The Code
@@ -101,7 +103,7 @@ Fresh full-page captures from the generated app are available as a linear demo p
 | Model release | `models.py`, `serving.py`, `rollout_control.py`, `monitoring.py` | Champion/challenger routing, shadow scoring, rollback |
 | KServe readiness | `llm_inference_readiness.py`, `transformer_explainer_readiness.py`, `model_cache.py`, `inference_gateway.py` | Serving topology and production KServe trade-offs |
 | Reliability | `reliability_signal_mesh.py`, `operational_readiness.py`, `slo.py`, `cost_observability.py` | How serving metrics become release decisions |
-| Demo layer | `dashboard.py`, `demo_cockpit.py`, `narrated_demo_studio.py`, `artifact_index.py` | How the project explains itself to a reviewer |
+| Operator UI | `operator_console.py`, `dashboard.py`, `demo_cockpit.py`, `narrated_demo_studio.py`, `artifact_index.py` | Shared shell, offline reports, responsive behavior, and serving evidence navigation |
 
 ## Commands To Reproduce
 

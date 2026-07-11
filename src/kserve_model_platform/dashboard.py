@@ -3,6 +3,8 @@ from __future__ import annotations
 import html
 from pathlib import Path
 
+from .operator_console import decorate_console
+
 
 def esc(value: object) -> str:
     return html.escape("" if value is None else str(value))
@@ -288,13 +290,13 @@ def render_dashboard(
           <div class="metric"><span>Latency p95</span><strong>{esc(report.get('latency_ms', {}).get('p95'))} ms</strong></div>
           <div class="metric"><span>Serving protocol</span><strong>Open Inference V2</strong></div>
         </section>
-        <section class="panel evidence-deck" data-testid="judge-evidence-deck">
+        <section class="panel evidence-deck" data-testid="release-evidence">
           <div class="evidence-head">
             <div>
-              <h2>Judge Evidence Deck</h2>
-              <p>Use this deck to narrate the production serving story before opening the live lab: request contract, rollout control, routing, and observability are connected.</p>
+              <h2>Serving Evidence</h2>
+              <p>Request contracts, rollout controls, routing state, and telemetry captured for the active revision set.</p>
             </div>
-            <span class="badge">review path</span>
+            <span class="badge">snapshot verified</span>
           </div>
           <div class="evidence-grid">
             <div class="evidence-card"><span>Request contract</span><strong>Open Inference V2 with idempotency</strong><p>The API validates request shape, writes prediction logs, and exposes bounded status without leaking feature payloads.</p></div>
@@ -303,10 +305,10 @@ def render_dashboard(
             <div class="evidence-card"><span>Explainability</span><strong>Transformer and explainer are isolated</strong><p>Pre/post-processing, predictor health gates, and async explanations avoid hiding predictor failures behind a single endpoint.</p></div>
           </div>
         </section>
-        <section class="panel demo-theater" data-testid="demo-theater">
+        <section class="panel demo-theater" data-testid="run-review">
           <div class="evidence-head">
-            <div><h2>Judge Demo Theater</h2><p>Walk a reviewer through low-latency inference, progressive rollout, Gateway routing, and observability with the committed narrated video.</p></div>
-            <span class="badge">narrated demo</span>
+            <div><h2>Traffic Review</h2><p>A timed review of request contracts, progressive delivery, Gateway routing, and rollback evidence.</p></div>
+            <span class="badge">guided runbook</span>
           </div>
           <div class="theater-grid">
             <div class="theater-stage" aria-live="polite">
@@ -326,10 +328,10 @@ def render_dashboard(
                 <div><span>Evidence</span><strong>OpenAPI + screenshots</strong></div>
               </div>
               <div class="theater-progress"><span id="theaterProgress"></span></div>
-              <p id="theaterNotes" class="theater-notes">Reviewer path: run <code>make demo</code>, then <code>make api-run</code> for the live inference lab.</p>
+              <p id="theaterNotes" class="theater-notes">Generate a deterministic snapshot with <code>make demo</code>; attach <code>make api-run</code> for live inference state.</p>
               <div class="theater-links">
-                <a href="../../docs/demo/kserve-judge-demo.mp4">Watch video</a>
-                <a href="../../docs/judge-demo.md">Demo script</a>
+                <a href="../../docs/demo/kserve-judge-demo.mp4">Open recording</a>
+                <a href="../../docs/judge-demo.md">Run review notes</a>
                 <a href="../../docs/demo-narration.txt">Narration text</a>
                 <a href="/docs">API docs</a>
               </div>
@@ -339,7 +341,7 @@ def render_dashboard(
         <script>
           function renderDemoTheater(index) {{
             const cues = [
-              {{cue: "Contract", title: "Start with serving contracts", body: "Show the runtime is not a loose FastAPI endpoint: it speaks Open Inference V2, preserves idempotency, and exposes bounded status.", notes: "Judges should see request validation, model version, and replay behavior before traffic controls."}},
+              {{cue: "Contract", title: "Start with serving contracts", body: "Show the runtime is not a loose FastAPI endpoint: it speaks Open Inference V2, preserves idempotency, and exposes bounded status.", notes: "Request validation, model version, and replay behavior are verified before traffic controls."}},
               {{cue: "Live", title: "Run a real inference request", body: "Use the Live Inference Lab to create a prediction, then watch route, model version, latency, and ledger counts update.", notes: "This proves the UI is wired to executable runtime state when make api-run is active."}},
               {{cue: "Rollout", title: "Explain champion/challenger control", body: "Move from canary checks to Gateway weights, shadow deltas, and rollback-safe promotion.", notes: "Promotion stays explicit; monitoring recommends but does not mutate production blindly."}},
               {{cue: "LLM", title: "Show platform depth beyond tabular serving", body: "Finish with LLM readiness, transformer/explainer topology, token budgets, and groundedness gates.", notes: "This is the senior angle: one platform handles KServe primitives, GenAI telemetry, and operational rollback."}}
@@ -577,5 +579,5 @@ def render_dashboard(
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(body, encoding="utf-8")
+    output_path.write_text(decorate_console(body, active="dashboard"), encoding="utf-8")
     return output_path

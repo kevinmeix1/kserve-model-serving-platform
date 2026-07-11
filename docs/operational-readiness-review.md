@@ -6,7 +6,7 @@ The review aggregates KServe rollout state, canary admission, SLO burn rate, AI 
 
 The packet is intentionally fail-closed. If release admission is missing, canary traffic is not decisioned, the serving SLO is paging, provenance is absent, telemetry lacks route/model fields, or latency budgets fail, the recommended action becomes remediation instead of promotion.
 
-Judge demo talking points:
+Interview review prompts:
 
 - The platform can explain a serving decision in terms a reviewer can audit.
 - Registry aliases, Gateway route weights, KServe traffic, SLOs, and telemetry are treated as one release surface.

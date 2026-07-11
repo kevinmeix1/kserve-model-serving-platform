@@ -4,6 +4,7 @@ import html
 from pathlib import Path
 
 from .io import read_json, write_json
+from .operator_console import decorate_console
 
 
 REQUIRED_EVIDENCE = [
@@ -179,7 +180,7 @@ def _write_html(path: Path, report: dict) -> Path:
   </main>
 </body>
 </html>"""
-    path.write_text(body, encoding="utf-8")
+    path.write_text(decorate_console(body, active="signals"), encoding="utf-8")
     return path
 
 

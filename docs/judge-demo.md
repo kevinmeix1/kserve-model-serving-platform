@@ -1,4 +1,4 @@
-# Judge Demo
+# Operations Review Runbook
 
 ## Start the live system
 
@@ -11,8 +11,8 @@ make api-run PYTHON=.venv/bin/python
 
 Open `http://127.0.0.1:8080/dashboard`.
 
-The dashboard includes a **Judge Demo Theater** panel that turns the committed
-video into a live review path: serving contract, inference lab, rollout gates,
+The dashboard includes a **Traffic Review** panel that ties the committed
+recording to the serving contract, inference lab, rollout gates,
 and LLM/KServe platform depth.
 
 ## Five-minute story

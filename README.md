@@ -8,15 +8,19 @@ The deterministic demo is local-first and fast to run. A containerized FastAPI r
 
 ![KServe serving dashboard](docs/screenshots/dashboard.png)
 
-[Watch the narrated judge demo](docs/demo/kserve-judge-demo.mp4) or follow the [five-minute demo runbook](docs/judge-demo.md). A verified mobile capture is available at [docs/screenshots/dashboard-mobile.png](docs/screenshots/dashboard-mobile.png), the LLM readiness dashboard capture is at [docs/screenshots/dashboard-llm-readiness.png](docs/screenshots/dashboard-llm-readiness.png), and the Transformer/Explainer readiness capture is at [docs/screenshots/dashboard-transformer-explainer.png](docs/screenshots/dashboard-transformer-explainer.png).
+[Watch the narrated operations review](docs/demo/kserve-judge-demo.mp4) or follow the [five-minute run-review notes](docs/judge-demo.md). A verified mobile capture is available at [docs/screenshots/dashboard-mobile.png](docs/screenshots/dashboard-mobile.png).
 
 For a study-oriented walkthrough with the full architecture diagram,
 step-by-step screenshot guide, code reading order, and interview explanations,
 start with [the project study guide](docs/study-guide.md).
 
-![Judge evidence deck](docs/screenshots/dashboard-evidence-deck.png)
+The UI is governed by an offline, tested operator-console system. Its rationale,
+open-source references, accessibility contract, and review checklist are in the
+[design-system notes](docs/design-system.md).
 
-![Judge demo theater](docs/screenshots/dashboard-demo-theater.png)
+![Serving evidence](docs/screenshots/dashboard-evidence-deck.png)
+
+![Traffic review](docs/screenshots/dashboard-demo-theater.png)
 
 ## What This Demonstrates
 
@@ -82,12 +86,12 @@ open .local/reports/reliability_signal_mesh.html
 open .local/reports/narrated_demo_studio.html
 ```
 
-The judge demo cockpit is the fastest portfolio review path: it links the
+The Operations Review connects the
 serving dashboard, narrated video, operational readiness packet, and generated
 evidence artifacts behind interactive release, observability, governance, and
 operator-handoff filters.
 
-![Judge demo cockpit](docs/screenshots/dashboard-judge-cockpit.jpg)
+![Operations review](docs/screenshots/study-02-judge-cockpit.png)
 
 The Operator Drill Lab rehearses detection, triage, containment, recovery, and
 blameless postmortem follow-up from the generated serving evidence.
@@ -100,11 +104,11 @@ decisions into one operator-facing evidence graph.
 
 ![Reliability signal mesh](docs/screenshots/dashboard-reliability-signal-mesh.png)
 
-The Narrated Demo Studio turns the evidence bundle into a judge-facing chapter
+The Narrated Run Review turns the evidence bundle into an operator-facing chapter
 timeline with natural voice backends, Remotion props, subtitle timing, and
 evidence-linked visuals.
 
-![Narrated demo studio](docs/screenshots/dashboard-narrated-demo-studio.png)
+![Narrated run review](docs/screenshots/dashboard-narrated-demo-studio.png)
 
 To run the actual HTTP serving boundary:
 
