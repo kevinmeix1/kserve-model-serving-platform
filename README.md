@@ -73,6 +73,7 @@ Open the generated dashboard:
 ```bash
 open .local/reports/kserve_serving_dashboard.html
 open .local/reports/judge_demo_cockpit.html
+open .local/reports/operator_drill_lab.html
 ```
 
 The judge demo cockpit is the fastest portfolio review path: it links the
@@ -81,6 +82,11 @@ evidence artifacts behind interactive release, observability, governance, and
 operator-handoff filters.
 
 ![Judge demo cockpit](docs/screenshots/dashboard-judge-cockpit.jpg)
+
+The Operator Drill Lab rehearses detection, triage, containment, recovery, and
+blameless postmortem follow-up from the generated serving evidence.
+
+![Operator drill lab](docs/screenshots/dashboard-operator-drill.png)
 
 To run the actual HTTP serving boundary:
 

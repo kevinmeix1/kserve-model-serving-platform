@@ -288,3 +288,70 @@ def _write_html(path: Path, manifest: dict) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(body, encoding="utf-8")
     return path
+
+
+def build_operator_drill_lab(
+    root: str | Path,
+    *,
+    project_name: str,
+    scenario: str,
+    primary_dashboard: str,
+    runbook: str,
+) -> dict:
+    root = Path(root)
+    reports = root / "reports"
+    readiness = _read_optional(reports / "operational_readiness_review.json")
+    release = _read_optional(reports / "release_admission_decision.json")
+    slo = _read_optional(reports / "slo_error_budget.json")
+    telemetry = _read_optional(reports / "semantic_telemetry_plan.json")
+    supply_chain = _read_optional(reports / "supply_chain_evidence.json")
+    timeline = [
+        {"phase": "detect", "objective": "Alert on symptoms that affect users, not only low-level causes.", "evidence": "slo_error_budget.json", "decision": "page_on_call_when_burn_rate_exceeds_policy", "pass": bool(slo)},
+        {"phase": "triage", "objective": "Correlate release state, telemetry, and Kubernetes workload health.", "evidence": "semantic_telemetry_plan.json", "decision": "attach_trace_and_resource_context", "pass": bool(telemetry)},
+        {"phase": "contain", "objective": "Freeze risky rollout or backfill actions while preserving rollback capacity.", "evidence": "release_admission_decision.json", "decision": str(release.get("decision", {}).get("recommended_action", release.get("recommended_action", "hold_for_operator_review"))), "pass": bool(release)},
+        {"phase": "recover", "objective": "Use reviewed artifacts to restore service without bypassing gates.", "evidence": "operational_readiness_review.json", "decision": str(readiness.get("recommended_action", "operator_watch_required")), "pass": bool(readiness)},
+        {"phase": "learn", "objective": "Write a factual, blameless postmortem with owners and prevention tasks.", "evidence": "supply_chain_evidence.json", "decision": "record_followups_before_closing_incident", "pass": bool(supply_chain)},
+    ]
+    passed = sum(1 for item in timeline if item["pass"])
+    report = {
+        "project": project_name,
+        "scenario": scenario,
+        "generated_at": "2026-07-11T00:00:00Z",
+        "status": "ready" if passed == len(timeline) else "needs_evidence",
+        "drill_score": round(100 * passed / len(timeline), 1),
+        "primary_dashboard": primary_dashboard,
+        "runbook": runbook,
+        "timeline": timeline,
+        "incident_roles": [
+            {"role": "incident_commander", "responsibility": "coordinate decisions and keep the timeline factual"},
+            {"role": "operations_lead", "responsibility": "execute rollback, freeze, replay, or recovery commands"},
+            {"role": "communications_lead", "responsibility": "summarize impact, status, and next update time"},
+            {"role": "scribe", "responsibility": "capture evidence links, timestamps, and follow-up owners"},
+        ],
+        "postmortem_template": {
+            "summary": "What happened, when it started, and current customer impact.",
+            "timeline": "Ordered detection, mitigation, recovery, and verification events.",
+            "root_cause": "Technical contributing factors without individual blame.",
+            "what_went_well": "Controls or automation that reduced impact.",
+            "what_went_poorly": "Gaps in detection, diagnosis, mitigation, or communication.",
+            "action_items": [
+                {"owner": "platform", "task": "convert any manual mitigation into a tested runbook step", "priority": "high"},
+                {"owner": "ml", "task": "add regression coverage for the triggering model or data condition", "priority": "high"},
+                {"owner": "sre", "task": "tighten alert routing or dashboard correlation if detection was delayed", "priority": "medium"},
+            ],
+        },
+        "telemetry_contract": ["service.name", "deployment.environment.name", "k8s.namespace.name", "k8s.pod.name", "airflow.dag_id", "airflow.run_id", "ml.model.name", "ml.model.version", "slo.name", "slo.burn_rate"],
+    }
+    write_json(reports / "operator_drill_report.json", report)
+    _write_operator_drill_html(reports / "operator_drill_lab.html", report)
+    return report
+
+
+def _write_operator_drill_html(path: Path, report: dict) -> Path:
+    payload = json.dumps(report, sort_keys=True).replace("</", "<\\/")
+    rows_html = "\n".join(f"""<article class="step" data-pass="{str(step['pass']).lower()}"><div><span>{esc(step['phase'])}</span><strong>{esc(step['objective'])}</strong></div><p>{esc(step['decision'])}</p><a href="{esc(step['evidence'])}">{esc(step['evidence'])}</a></article>""" for step in report["timeline"])
+    roles_html = "\n".join(f"<li><strong>{esc(role['role'].replace('_', ' '))}</strong><span>{esc(role['responsibility'])}</span></li>" for role in report["incident_roles"])
+    body = f"""<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>{esc(report["project"])} Operator Drill Lab</title><style>* {{ box-sizing: border-box; }} body {{ margin: 0; background: #f6f8fb; color: #172026; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }} header {{ background: #101827; color: white; padding: 30px 36px; border-bottom: 5px solid #0f766e; }} main {{ max-width: 1440px; margin: 0 auto; padding: 24px 36px 44px; }} h1 {{ margin: 0; font-size: 30px; line-height: 1.16; }} h2 {{ margin: 0 0 12px; font-size: 17px; }} header p {{ color: #cbd5e1; max-width: 900px; line-height: 1.5; }} .hero {{ display: grid; grid-template-columns: minmax(270px, .58fr) minmax(0, 1.42fr); gap: 16px; align-items: stretch; }} .panel {{ background: white; border: 1px solid #d8e0ea; border-radius: 8px; padding: 16px; box-shadow: 0 1px 2px rgba(15, 23, 42, .05); }} .score strong {{ display: block; font-size: 48px; line-height: 1; }} .score span, .step span, .kpi span {{ display: block; color: #64748b; font-size: 12px; font-weight: 850; text-transform: uppercase; }} .bar {{ height: 12px; border-radius: 999px; background: #e2e8f0; overflow: hidden; margin: 16px 0; }} .bar span {{ height: 100%; width: calc(var(--value) * 1%); display: block; background: #0f766e; }} .actions {{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }} .actions a, button {{ border: 1px solid #cbd5e1; border-radius: 6px; background: white; color: #0f766e; padding: 9px 12px; font: inherit; font-size: 13px; font-weight: 850; text-decoration: none; cursor: pointer; }} .timeline {{ display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }} .step {{ min-width: 0; min-height: 180px; border: 1px solid #dbe3ec; border-radius: 8px; padding: 13px; display: grid; align-content: space-between; background: #fbfdff; overflow: hidden; }} .step[data-pass="false"] {{ border-color: #fecaca; background: #fff7f7; }} .step strong, .step p, .step a, li span {{ overflow-wrap: anywhere; }} .step strong {{ display: block; margin-top: 8px; font-size: 14px; line-height: 1.3; }} .step p {{ margin: 10px 0; color: #475569; font-size: 13px; }} .step a {{ color: #1d4ed8; font-size: 12px; font-weight: 850; text-decoration: none; }} .lower {{ display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 16px; margin-top: 16px; align-items: start; }} ul {{ margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }} li {{ border: 1px solid #e2e8f0; border-radius: 7px; padding: 12px; background: #fbfdff; }} li strong {{ display: block; margin-bottom: 5px; text-transform: capitalize; }} .kpis {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid #dbe3ec; border-radius: 8px; overflow: hidden; }} .kpi {{ min-height: 78px; padding: 12px; background: #f8fafc; border-right: 1px solid #dbe3ec; }} .kpi:last-child {{ border-right: 0; }} .kpi strong {{ display: block; margin-top: 7px; font-size: 17px; overflow-wrap: anywhere; }} @media (max-width: 980px) {{ header, main {{ padding-left: 18px; padding-right: 18px; }} .hero, .lower, .timeline {{ grid-template-columns: 1fr; }} .kpis {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}</style></head><body><header><h1>{esc(report["project"])} Operator Drill Lab</h1><p>{esc(report["scenario"])}. Practice detection, triage, containment, recovery, and blameless learning from generated platform evidence.</p></header><main><section class="hero"><div class="panel score"><span>Drill readiness</span><strong>{esc(report["drill_score"])}%</strong><div class="bar" style="--value:{esc(report["drill_score"])}"><span></span></div><div>{esc(report["status"].replace("_", " "))}</div><div class="actions"><a href="{esc(report["primary_dashboard"])}">Open dashboard</a><a href="{esc(report["runbook"])}">Open runbook</a><a href="operator_drill_report.json">Drill JSON</a></div></div><div class="panel"><h2>Failure Drill Timeline</h2><div class="timeline">{rows_html}</div></div></section><section class="lower"><div class="panel"><h2>Incident Roles</h2><ul>{roles_html}</ul></div><div class="panel"><h2>Postmortem Contract</h2><div class="kpis"><div class="kpi"><span>Summary</span><strong>customer impact first</strong></div><div class="kpi"><span>Root cause</span><strong>technical factors</strong></div><div class="kpi"><span>Actions</span><strong>{esc(len(report["postmortem_template"]["action_items"]))} owners</strong></div><div class="kpi"><span>Telemetry</span><strong>{esc(len(report["telemetry_contract"]))} fields</strong></div></div><div class="actions" id="filters"></div></div></section></main><script>const report = {payload}; document.querySelector("#filters").innerHTML = report.telemetry_contract.map(field => `<button>${{field}}</button>`).join("");</script></body></html>"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+    return path
