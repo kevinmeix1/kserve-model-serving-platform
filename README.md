@@ -74,6 +74,7 @@ Open the generated dashboard:
 open .local/reports/kserve_serving_dashboard.html
 open .local/reports/judge_demo_cockpit.html
 open .local/reports/operator_drill_lab.html
+open .local/reports/reliability_signal_mesh.html
 ```
 
 The judge demo cockpit is the fastest portfolio review path: it links the
@@ -87,6 +88,12 @@ The Operator Drill Lab rehearses detection, triage, containment, recovery, and
 blameless postmortem follow-up from the generated serving evidence.
 
 ![Operator drill lab](docs/screenshots/dashboard-operator-drill.png)
+
+The Reliability Signal Mesh connects Airflow asset events, OpenTelemetry
+resource attributes, Kueue admission pressure, SLO burn, and fail-closed release
+decisions into one operator-facing evidence graph.
+
+![Reliability signal mesh](docs/screenshots/dashboard-reliability-signal-mesh.png)
 
 To run the actual HTTP serving boundary:
 

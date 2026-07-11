@@ -52,6 +52,7 @@ from .pod_resource_envelopes import build_pod_resource_envelope_plan
 from .provisioning_admission import build_provisioning_admission_plan
 from .queue_simulator import build_queue_simulation
 from .release_admission import build_release_admission_decision
+from .reliability_signal_mesh import build_reliability_signal_mesh
 from .registry import aliases as registry_aliases
 from .registry import promote_challenger, rollback as rollback_registry, seed_registry
 from .resource_health_status import build_resource_health_status_plan
@@ -297,6 +298,12 @@ def demo(output: str | Path) -> dict:
         primary_dashboard="kserve_serving_dashboard.html",
         runbook="../../docs/runbook.md",
     )
+    reliability_signal_mesh = build_reliability_signal_mesh(
+        root,
+        project_name="KServe Model Serving Platform",
+        domain="Real-time inference and canary rollout",
+        primary_dashboard="kserve_serving_dashboard.html",
+    )
     artifact_index = render_artifact_index(
         root,
         title="KServe Model Serving Platform",
@@ -364,6 +371,7 @@ def demo(output: str | Path) -> dict:
         "operational_readiness": operational_readiness,
         "judge_demo_cockpit": judge_demo_cockpit,
         "operator_drill": operator_drill,
+        "reliability_signal_mesh": reliability_signal_mesh,
         "artifact_index": str(artifact_index),
         "orchestration_scorecard": orchestration_scorecard,
         "supply_chain": supply_chain,
