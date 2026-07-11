@@ -75,6 +75,7 @@ open .local/reports/kserve_serving_dashboard.html
 open .local/reports/judge_demo_cockpit.html
 open .local/reports/operator_drill_lab.html
 open .local/reports/reliability_signal_mesh.html
+open .local/reports/narrated_demo_studio.html
 ```
 
 The judge demo cockpit is the fastest portfolio review path: it links the
@@ -94,6 +95,12 @@ resource attributes, Kueue admission pressure, SLO burn, and fail-closed release
 decisions into one operator-facing evidence graph.
 
 ![Reliability signal mesh](docs/screenshots/dashboard-reliability-signal-mesh.png)
+
+The Narrated Demo Studio turns the evidence bundle into a judge-facing chapter
+timeline with natural voice backends, Remotion props, subtitle timing, and
+evidence-linked visuals.
+
+![Narrated demo studio](docs/screenshots/dashboard-narrated-demo-studio.png)
 
 To run the actual HTTP serving boundary:
 

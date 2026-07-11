@@ -46,6 +46,7 @@ def render_artifact_index(root: str | Path, *, title: str, description: str, das
         ("Asset Partitioning", "asset_partitioning_plan.json", "Airflow 3.2 partitioned assets for canary telemetry, route decisions, rollback smoke, and partition-key lineage."),
         ("Stateful Orchestration", "airflow_stateful_orchestration_plan.json", "Airflow 3.3 task/asset state stores, bounded rollout rollup and route fanout, retry policies, and real SDK validation."),
         ("Reliability Signal Mesh", "reliability_signal_mesh.html", "Operator-facing mesh that connects Airflow assets, OTel attributes, Kueue admission, SLO burn, and fail-closed release decisions."),
+        ("Narrated Demo Studio", "narrated_demo_studio.html", "Judge-facing walkthrough timeline with natural voice backends, Remotion props, subtitle timing, and evidence-linked visuals."),
         ("Multi-Team Readiness", "multi_team_readiness_plan.json", "Airflow multi-team preview readiness for serving-owned DAG Bundles, pools, triggerers, secrets, executors, and asset filtering."),
         ("Event-Driven Assets", "event_driven_assets_plan.json", "Airflow 3 AssetWatchers for challenger registration, KServe router readiness, and Gateway route convergence."),
         ("Pod Resource Envelopes", "pod_resource_envelope_plan.json", "Kubernetes pod-level resources, scheduling gates, KServe cache readiness, and scheduler-churn observability."),

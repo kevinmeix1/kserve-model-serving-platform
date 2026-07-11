@@ -42,6 +42,7 @@ from .models import generate_requests
 from .monitoring import build_report, evaluate_canary
 from .multi_team_readiness import build_multi_team_readiness_plan
 from .multikueue_dispatch import build_multikueue_dispatch_plan
+from .narrated_demo_studio import build_narrated_demo_studio
 from .network_security import build_network_security_report
 from .orchestration_scorecard import build_orchestration_scorecard
 from .operational_readiness import build_operational_readiness_review
@@ -304,6 +305,13 @@ def demo(output: str | Path) -> dict:
         domain="Real-time inference and canary rollout",
         primary_dashboard="kserve_serving_dashboard.html",
     )
+    narrated_demo_studio = build_narrated_demo_studio(
+        root,
+        project_name="KServe Model Serving Platform",
+        domain="Real-time inference and canary rollout",
+        primary_dashboard="kserve_serving_dashboard.html",
+        demo_video="../../docs/demo/kserve-judge-demo.mp4",
+    )
     artifact_index = render_artifact_index(
         root,
         title="KServe Model Serving Platform",
@@ -372,6 +380,7 @@ def demo(output: str | Path) -> dict:
         "judge_demo_cockpit": judge_demo_cockpit,
         "operator_drill": operator_drill,
         "reliability_signal_mesh": reliability_signal_mesh,
+        "narrated_demo_studio": narrated_demo_studio,
         "artifact_index": str(artifact_index),
         "orchestration_scorecard": orchestration_scorecard,
         "supply_chain": supply_chain,
